@@ -1,0 +1,46 @@
+name: Repo rules
+
+# Enforces the hard rules in CLAUDE.md: every commit logs a changelog.md
+# entry, changelog.md is append-only, and core files are archived, not deleted.
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Changelog and no-delete rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Block force-pushes
+        if: github.event_name == 'push' && github.event.forced
+        run: |
+          echo "::error title=Repo rules (CLAUDE.md)::Force-push to ${{ github.ref_name }} detected. History rewrites can erase changelog entries (rule 5)."
+          exit 1
+
+      - name: Check commits
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            base="$PR_BASE"; head="$PR_HEAD"
+          else
+            base="$PUSH_BEFORE"; head="$PUSH_AFTER"
+            # New branch: check only commits not already on the default branch.
+            if [ -z "$base" ] || [ "$base" = 0000000000000000000000000000000000000000 ]; then
+              base=$(git merge-base "origin/$DEFAULT_BRANCH" "$head" 2>/dev/null || true)
+            fi
+          fi
+          bash .github/scripts/check-repo-rules.sh "$base" "$head"
