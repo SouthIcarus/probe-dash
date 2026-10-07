@@ -78,3 +78,18 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Why:** Lets the owner test without setting up secrets yet.
 - **Files:** `.github/workflows/build.yml`
 - **Refs:** #0002
+
+## #0005 — 2026-10-07 — BLOCKER — Prototype build 3 closes as soon as it opens
+- **What:** Owner installed `probe-dash-proto-3.apk` on an Android phone;
+  the app closes immediately every time. The APK's manifest checks out
+  (AdMob test app ID present, permissions normal, minSdk 24), so the cause
+  needs a real crash log. Claude can't run an emulator in its own
+  environment (Google's SDK download server is blocked there), so added a
+  `Launch test` workflow: GitHub builds the release APK, installs it on an
+  Android 11 emulator, opens it, fails if it isn't running 30 seconds
+  later, and prints the crash log.
+- **Why:** Get the actual error instead of guessing, and stop any future
+  build that crashes on launch from reaching the owner's phone. Unit and
+  widget tests can't catch this: they don't run the Android app.
+- **Files:** `.github/workflows/launch-test.yml`, `.github/scripts/launch-test.sh`
+- **Refs:** #0002
