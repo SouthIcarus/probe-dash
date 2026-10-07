@@ -1,0 +1,84 @@
+name: Build
+
+# Every push and PR: analyze + test. Every push to main also builds an
+# Android APK and publishes it as a GitHub pre-release, so the owner can
+# download and install the prototype straight from a phone.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: 3.47.6
+
+jobs:
+  test:
+    name: Analyze and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+
+  apk:
+    name: Build APK
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to publish the pre-release on main
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      # Prototype builds are signed with a debug key. Keeping the same key
+      # between builds lets a new APK install over the old one without
+      # losing progress. (GitHub drops caches unused for 7 days; then the
+      # next APK needs an uninstall first.) Real release signing comes
+      # before the Play Store upload.
+      - name: Reuse prototype signing key
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: prototype-debug-keystore-v1
+
+      - name: Build APK
+        run: flutter build apk --release --build-number=${{ github.run_number }}
+
+      - name: Rename APK
+        run: mv build/app/outputs/flutter-apk/app-release.apk "probe-dash-proto-${{ github.run_number }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe-dash-proto-${{ github.run_number }}
+          path: probe-dash-proto-${{ github.run_number }}.apk
+
+      - name: Publish pre-release (main only)
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: proto-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: Prototype build ${{ github.run_number }}
+          prerelease: true
+          body: |
+            Prototype APK for testing on Android (7.0+). Test ads only.
+            Commit: ${{ github.sha }}
+          files: probe-dash-proto-${{ github.run_number }}.apk
