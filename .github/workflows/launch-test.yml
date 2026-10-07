@@ -18,9 +18,15 @@ env:
 
 jobs:
   launch:
-    name: Opens without crashing (Android emulator)
+    name: Opens without crashing (Android API ${{ matrix.api-level }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        # 30 = Android 11 (oldest common), 35 = Android 15, 36 = Android 16
+        # (owner's Galaxy S26).
+        api-level: [30, 35, 36]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -45,7 +51,7 @@ jobs:
       - name: Install, open, and watch for 30 seconds
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
+          api-level: ${{ matrix.api-level }}
           target: google_apis
           arch: x86_64
           disable-animations: true

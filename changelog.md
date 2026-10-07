@@ -93,3 +93,15 @@ new entry that references the old one instead. Newest entries at the bottom.
   widget tests can't catch this: they don't run the Android app.
 - **Files:** `.github/workflows/launch-test.yml`, `.github/scripts/launch-test.sh`
 - **Refs:** #0002
+
+## #0006 — 2026-10-07 — NOTE — Crash device: Galaxy S26 (Android 16); 16 KB pages ruled out
+- **What:** Owner's phone is a Samsung Galaxy S26 (base model), which runs
+  Android 16. Checked the prime suspect for new phones, 16 KB memory pages:
+  all three arm64 native libraries in build 3 (`libflutter.so`,
+  `libapp.so`, `libdartjni.so`) are 16 KB-aligned and stored uncompressed
+  at 16 KB offsets, so that is not the cause. The launch test now runs on
+  Android 11, 15, and 16 emulators instead of 11 only.
+- **Why:** The crash may depend on the Android version; testing only
+  Android 11 could miss it.
+- **Files:** `.github/workflows/launch-test.yml`
+- **Refs:** #0005
