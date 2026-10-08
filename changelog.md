@@ -78,3 +78,50 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Why:** Lets the owner test without setting up secrets yet.
 - **Files:** `.github/workflows/build.yml`
 - **Refs:** #0002
+
+## #0005 — 2026-10-07 — BLOCKER — Prototype build 3 closes as soon as it opens
+- **What:** Owner installed `probe-dash-proto-3.apk` on an Android phone;
+  the app closes immediately every time. The APK's manifest checks out
+  (AdMob test app ID present, permissions normal, minSdk 24), so the cause
+  needs a real crash log. Claude can't run an emulator in its own
+  environment (Google's SDK download server is blocked there), so added a
+  `Launch test` workflow: GitHub builds the release APK, installs it on an
+  Android 11 emulator, opens it, fails if it isn't running 30 seconds
+  later, and prints the crash log.
+- **Why:** Get the actual error instead of guessing, and stop any future
+  build that crashes on launch from reaching the owner's phone. Unit and
+  widget tests can't catch this: they don't run the Android app.
+- **Files:** `.github/workflows/launch-test.yml`, `.github/scripts/launch-test.sh`
+- **Refs:** #0002
+
+## #0006 — 2026-10-07 — NOTE — Crash device: Galaxy S26 (Android 16); 16 KB pages ruled out
+- **What:** Owner's phone is a Samsung Galaxy S26 (base model), which runs
+  Android 16. Checked the prime suspect for new phones, 16 KB memory pages:
+  all three arm64 native libraries in build 3 (`libflutter.so`,
+  `libapp.so`, `libdartjni.so`) are 16 KB-aligned and stored uncompressed
+  at 16 KB offsets, so that is not the cause. The launch test now runs on
+  Android 11, 15, and 16 emulators instead of 11 only.
+- **Why:** The crash may depend on the Android version; testing only
+  Android 11 could miss it.
+- **Files:** `.github/workflows/launch-test.yml`
+- **Refs:** #0005
+
+## #0007 — 2026-10-07 — CHANGE — Fix launch crash: keep WorkManager's database class
+- **What:** The launch test reproduced the crash on the Android 11
+  emulator: `FATAL EXCEPTION: main ... Unable to get provider
+  androidx.startup.InitializationProvider ... Failed to create an instance
+  of androidx.work.impl.WorkDatabase`. WorkManager (a dependency of the
+  Google Mobile Ads SDK) starts automatically when the app process starts
+  and builds its database by looking up the generated `WorkDatabase_Impl`
+  class by name. The release build's code shrinker (R8) stripped that
+  class's constructor, so the app died before showing anything. Added
+  `android/app/proguard-rules.pro` keeping every Room database class and
+  its constructor, and wired it into the release build.
+- **Why:** Root-cause fix for #0005. Not specific to the Galaxy S26: every
+  release build crashed on every phone.
+- **Learning:** Release builds shrink code; debug builds and unit tests
+  don't. A crash that only exists in the shrunk build is invisible to
+  `flutter test`. The launch test now runs the real release APK on every
+  push and PR, so this class of bug can't ship again.
+- **Files:** `android/app/proguard-rules.pro`, `android/app/build.gradle.kts`
+- **Refs:** #0005, #0006
