@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../logic/progress.dart';
@@ -20,11 +22,13 @@ class GameController extends ChangeNotifier {
   final SaveStore store;
   final AdService ads;
 
-  /// Records a finished run and saves. Returns true on a new best.
-  Future<bool> completeRun(RunResult result) async {
+  /// Records a finished run and queues a save (GAME-6). Returns true on a
+  /// new best. Doesn't wait for the save, so results show at once; saves
+  /// are queued in order by [SaveStore] and never overlap.
+  bool completeRun(RunResult result) {
     final newBest = progress.applyRun(result);
     notifyListeners();
-    await store.save(progress);
+    unawaited(store.save(progress));
     return newBest;
   }
 
@@ -38,11 +42,22 @@ class GameController extends ChangeNotifier {
     return true;
   }
 
+  bool _buying = false;
+
+  /// Buys one level (US-3). A buy that arrives while the previous one is
+  /// still in flight (fast double tap) is ignored, so one tap = one level
+  /// (A-22).
   Future<bool> buyUpgrade(UpgradeType type) async {
-    if (!progress.buyUpgrade(type)) return false;
-    notifyListeners();
-    await store.save(progress);
-    return true;
+    if (_buying) return false;
+    _buying = true;
+    try {
+      if (!progress.buyUpgrade(type)) return false;
+      notifyListeners();
+      await store.save(progress);
+      return true;
+    } finally {
+      _buying = false;
+    }
   }
 
   /// Called when leaving the results screen; shows an interstitial only

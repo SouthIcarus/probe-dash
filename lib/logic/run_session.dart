@@ -7,6 +7,35 @@ import 'upgrades.dart';
 /// and ReviveOffer states: the UI decides whether a revive can be offered.
 enum RunPhase { ready, playing, crashed, over }
 
+/// Gameplay moments the renderer and UI react to (A-00). [RunSession]
+/// records one event per occurrence; the game drains them each frame.
+enum RunEvent {
+  /// A hit with no shield left: the run is over unless revived.
+  crash,
+
+  /// A shield absorbed a hit.
+  shieldHit,
+
+  /// Passed a gate with less than [Tuning.nearMissDistance] to spare; the
+  /// bonus is [Tuning.nearMissBonus] crystals.
+  nearMiss,
+
+  /// Collected a crystal pickup.
+  crystal,
+
+  /// Collected a magnet pickup.
+  magnet,
+
+  /// Touched the floor and bounced (shield or invincibility saved the run).
+  floorBounce,
+
+  /// Distance passed the player's best (once per run, only if best > 0).
+  newBest,
+
+  /// The head-start autopilot ended (once per run, only with Head Start).
+  headStartEnd,
+}
+
 class Gate {
   Gate(this.x, this.gapCenter, this.gapHeight);
 
@@ -26,11 +55,18 @@ class Gate {
 enum PickupKind { crystal, magnet }
 
 class Pickup {
-  Pickup(this.kind, this.x, this.y);
+  Pickup(this.kind, this.x, this.y)
+      : prevX = x,
+        prevY = y;
 
   final PickupKind kind;
   double x;
   double y;
+
+  /// Position before the latest physics step (magnet pull moves pickups),
+  /// for smooth rendering (FEEL-02).
+  double prevX;
+  double prevY;
   bool collected = false;
 }
 
@@ -59,6 +95,7 @@ class RunSession {
   RunSession({
     required this.worldWidth,
     required Map<UpgradeType, int> upgradeLevels,
+    this.bestDistance = 0,
     int? seed,
   })  : _levels = Map.of(upgradeLevels),
         _random = math.Random(seed) {
@@ -70,9 +107,14 @@ class RunSession {
             Tuning.metersPerUnit;
     _nextGateX = _headStartUnits + probeX + worldWidth * 0.75;
     _lastGapCenter = Tuning.worldHeight / 2;
+    _syncPrevious();
   }
 
   final double worldWidth;
+
+  /// The player's best distance in meters before this run (0 = none yet).
+  final int bestDistance;
+
   final Map<UpgradeType, int> _levels;
   final math.Random _random;
 
@@ -96,11 +138,56 @@ class RunSession {
   /// Seconds since the last tap; the renderer uses it for the thruster flame.
   double sinceTap = 99;
 
+  /// Events since the last [drainEvents], oldest first.
+  final List<RunEvent> events = [];
+
+  /// True once this run's distance has passed [bestDistance].
+  bool passedBest = false;
+
+  /// Returns the pending events and clears the queue.
+  List<RunEvent> drainEvents() {
+    if (events.isEmpty) return const [];
+    final out = List.of(events);
+    events.clear();
+    return out;
+  }
+
   late final double _headStartUnits;
   late double _nextGateX;
   late double _lastGapCenter;
   double _nextMagnetMeters = Tuning.magnetPickupEveryMeters;
   double _accumulator = 0;
+
+  // State before the latest fixed step, for rendering between steps
+  // (FEEL-02). Never read by the physics.
+  double _prevScroll = 0;
+  double _prevProbeY = 0;
+
+  /// How far the clock is between the previous and the latest physics
+  /// step, 0..1. Outside `playing` the latest state is shown as is.
+  double get alpha {
+    if (phase != RunPhase.playing) return 1;
+    final a = _accumulator / Tuning.fixedStep;
+    return a < 0 ? 0 : (a > 1 ? 1 : a);
+  }
+
+  /// Scroll and probe height to draw this frame: the last two physics
+  /// states blended by [alpha], so motion is smooth at any refresh rate.
+  double get renderScroll => _lerp(_prevScroll, scroll, alpha);
+  double get renderProbeY => _lerp(_prevProbeY, probeY, alpha);
+  double renderPickupX(Pickup p) => _lerp(p.prevX, p.x, alpha);
+  double renderPickupY(Pickup p) => _lerp(p.prevY, p.y, alpha);
+
+  static double _lerp(double a, double b, double t) => a + (b - a) * t;
+
+  void _syncPrevious() {
+    _prevScroll = scroll;
+    _prevProbeY = probeY;
+    for (final p in pickups) {
+      p.prevX = p.x;
+      p.prevY = p.y;
+    }
+  }
 
   int _level(UpgradeType t) => _levels[t] ?? 0;
 
@@ -152,8 +239,17 @@ class RunSession {
   }
 
   void _step(double h) {
+    _syncPrevious();
     sinceTap += h;
+    final wasHeadStart = inHeadStart;
     scroll += speed * h;
+    if (wasHeadStart && !inHeadStart) events.add(RunEvent.headStartEnd);
+    if (!passedBest &&
+        bestDistance > 0 &&
+        distanceMeters.floor() > bestDistance) {
+      passedBest = true; // same rule as the results' "NEW BEST!"
+      events.add(RunEvent.newBest);
+    }
 
     if (inHeadStart) {
       // Autopilot: glide to the middle while rocketing forward.
@@ -173,7 +269,10 @@ class RunSession {
     if (probeY > Tuning.worldHeight - Tuning.probeRadius) {
       probeY = Tuning.worldHeight - Tuning.probeRadius;
       if (!invincible) _hit();
-      if (phase == RunPhase.playing) _thrust(); // bounce off the floor
+      if (phase == RunPhase.playing) {
+        _thrust(); // bounce off the floor
+        events.add(RunEvent.floorBounce);
+      }
     }
 
     _spawn();
@@ -252,6 +351,7 @@ class RunSession {
             gate.minClearance < Tuning.nearMissDistance) {
           nearMisses++;
           rawCrystals += Tuning.nearMissBonus;
+          events.add(RunEvent.nearMiss);
         }
       }
     }
@@ -277,9 +377,11 @@ class RunSession {
         p.collected = true;
         if (p.kind == PickupKind.crystal) {
           rawCrystals++;
+          events.add(RunEvent.crystal);
         } else {
           magnetSeconds =
               Upgrades.magnetSeconds(_level(UpgradeType.magnet));
+          events.add(RunEvent.magnet);
         }
       }
     }
@@ -291,9 +393,11 @@ class RunSession {
       shieldHitsLeft--;
       invincibleSeconds =
           Upgrades.shieldGraceSeconds(_level(UpgradeType.shield));
+      events.add(RunEvent.shieldHit);
       return;
     }
     phase = RunPhase.crashed;
+    events.add(RunEvent.crash);
   }
 
   /// Continue after a crash (rewarded ad or token). Once per run.
@@ -308,15 +412,23 @@ class RunSession {
     velocityY = Tuning.thrustVelocity / 2;
     invincibleSeconds = Tuning.reviveInvincibleSeconds;
     _accumulator = 0;
+    _syncPrevious(); // the probe jumped: don't streak from the crash spot
     phase = RunPhase.playing;
   }
 
+  RunResult? _result;
+
   /// End the run (player declined or couldn't revive).
+  ///
+  /// A run has exactly one result (A-20): repeated calls return the same
+  /// [RunResult] without recalculating, so a double tap can't count it twice.
   RunResult finish() {
+    final done = _result;
+    if (done != null) return done;
     phase = RunPhase.over;
     final multiplier =
         Upgrades.crystalMultiplier(_level(UpgradeType.crystalValue));
-    return RunResult(
+    return _result = RunResult(
       distanceMeters: distanceMeters.floor(),
       rawCrystals: rawCrystals,
       earnedCrystals: (rawCrystals * multiplier).floor(),
@@ -324,6 +436,9 @@ class RunSession {
       revived: reviveUsed,
     );
   }
+
+  /// True once [finish] has produced this run's result.
+  bool get finished => _result != null;
 
   static bool _circleHitsRect(double cx, double cy, double r, double rx,
       double ry, double rw, double rh) {

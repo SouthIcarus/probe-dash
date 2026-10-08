@@ -1,13 +1,44 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../app/game_controller.dart';
 import '../logic/upgrades.dart';
 
 /// Spend crystals on the four upgrades (spec US-3).
-class UpgradesScreen extends StatelessWidget {
+class UpgradesScreen extends StatefulWidget {
   const UpgradesScreen({super.key, required this.controller});
 
   final GameController controller;
+
+  @override
+  State<UpgradesScreen> createState() => _UpgradesScreenState();
+}
+
+class _UpgradesScreenState extends State<UpgradesScreen> {
+  /// After a buy, that tile ignores taps for this long (A-22), so a fast
+  /// double tap buys one level, not two.
+  static const buyLock = Duration(milliseconds: 400);
+
+  final Map<UpgradeType, Timer> _locked = {};
+
+  GameController get controller => widget.controller;
+
+  Future<void> _buy(UpgradeType type) async {
+    if (_locked.containsKey(type)) return;
+    _locked[type] = Timer(buyLock, () {
+      if (mounted) setState(() => _locked.remove(type));
+    });
+    await controller.buyUpgrade(type);
+  }
+
+  @override
+  void dispose() {
+    for (final t in _locked.values) {
+      t.cancel();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +68,7 @@ class UpgradesScreen extends StatelessWidget {
                   info: u,
                   level: p.level(u.type),
                   crystals: p.crystals,
-                  onBuy: () => controller.buyUpgrade(u.type),
+                  onBuy: () => _buy(u.type),
                 ),
             ],
           ),

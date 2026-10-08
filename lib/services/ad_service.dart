@@ -20,11 +20,24 @@ class AdService {
       ? 'ca-app-pub-3940256099942544/4411468910'
       : 'ca-app-pub-3940256099942544/1033173712';
 
-  RewardedAd? _rewarded;
+  RewardedAd? _rewardedAd;
   InterstitialAd? _interstitial;
   bool _canRequestAds = false;
 
-  bool get rewardedReady => _rewarded != null;
+  final ValueNotifier<bool> _rewardedReady = ValueNotifier(false);
+
+  RewardedAd? get _rewarded => _rewardedAd;
+  set _rewarded(RewardedAd? ad) {
+    _rewardedAd = ad;
+    _rewardedReady.value = ad != null;
+  }
+
+  /// Whether a rewarded ad is loaded, as a listenable so ad buttons switch
+  /// from "No ad available" to active as soon as one finishes loading
+  /// (A-09).
+  ValueListenable<bool> get rewardedReadyListenable => _rewardedReady;
+
+  bool get rewardedReady => rewardedReadyListenable.value;
 
   /// Runs the consent flow (AD-2: EEA/UK users see Google's consent form),
   /// then starts the SDK and preloads ads.

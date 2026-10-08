@@ -125,3 +125,251 @@ new entry that references the old one instead. Newest entries at the bottom.
   push and PR, so this class of bug can't ship again.
 - **Files:** `android/app/proguard-rules.pro`, `android/app/build.gradle.kts`
 - **Refs:** #0005, #0006
+
+## #0008 — 2026-10-08 — CHANGE — One run, one result; one tap, one upgrade level
+- **What:** (1) `RunSession.finish()` now returns the same `RunResult` on
+  repeated calls without recalculating. (2) `GameScreen._finish()` has a
+  guard flag, so a run is applied to progress exactly once even when a
+  double tap on "No thanks" or a tap as the revive countdown hits 0 reach
+  it twice. (3) Upgrades: `GameController.buyUpgrade` ignores a buy while
+  the previous one is still saving, and each tile ignores taps for 400 ms
+  after a buy (A-22), so a fast double tap buys one level, not two.
+  New tests: `test/game_screen_test.dart` (double tap, countdown race),
+  `test/upgrades_screen_test.dart` (taps 100 ms apart, in-flight buy),
+  `finish()` idempotence in `run_session_test.dart`; shared fakes in
+  `test/support/fakes.dart`.
+- **Why:** UX review UX-21/A-20 and UX-23/A-22: both paths corrupted the
+  economy (crystals and `runs` counted twice, which also skews interstitial
+  pacing AD-1). UX plan PR 1 item 1.
+- **Agent:** engineer
+- **Files:** `lib/logic/run_session.dart`, `lib/ui/game_screen.dart`,
+  `lib/app/game_controller.dart`, `lib/ui/upgrades_screen.dart`,
+  `test/game_screen_test.dart`, `test/upgrades_screen_test.dart`,
+  `test/support/fakes.dart`, `test/logic/run_session_test.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #1; `ux-review.md` A-20, A-22; spec US-3, GAME-6, AD-1
+
+## #0009 — 2026-10-08 — CHANGE — Back gesture mid-run ends the run instead of losing it
+- **What:** `GameScreen` is wrapped in `PopScope`. Back may leave the
+  screen only before the first tap (`ready`) or once results show. A back
+  gesture while playing or crashed (revive offer) goes through the normal
+  `_finish()` path: the run is saved and the results screen shows. Back
+  while a rewarded ad is in flight is ignored. No pause state is added
+  (owner decision D1 is pending). Tests use `handlePopRoute()` for back
+  mid-run, back on the revive offer, and back before the first tap.
+- **Why:** FEEL-03 / UX-07 (A-07): an accidental edge swipe closed the game
+  mid-run, so the run was never counted and its crystals were lost. The
+  UX review's A-07 proposes a PAUSED panel; per the brief, that waits for
+  D1, and this PR uses the existing finish path instead.
+- **Agent:** engineer
+- **Files:** `lib/ui/game_screen.dart`, `test/game_screen_test.dart`,
+  `test/support/fakes.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #2, D1; `ux-review.md` A-07; spec §7, GAME-6
+
+## #0010 — 2026-10-08 — CHANGE — Crash beat and 400 ms input lock on overlays
+- **What:** On a crash the game now plays a 500 ms crash beat before any
+  overlay appears: camera shake (300 ms, up to 1.5 world units, linear
+  decay), a white flash (25% alpha fading over 120 ms) and 12 debris
+  triangles (side 1.2 u, white-blue and orange, 20–40 u/s, fading over
+  500 ms), all drawn with shapes in `ProbeGame` and render-only. After the
+  beat the revive offer or the results appear. Each overlay fades in over
+  250 ms and ignores all taps for its first 400 ms (`IgnorePointer`).
+  Tests: overlay absent at 400 ms and present at 550 ms after the crash;
+  taps on "No thanks" / "Watch ad to revive" 100 ms after it appears do
+  nothing (no ad shown, run not applied); PLAY AGAIN ignores an early tap.
+- **Why:** FEEL-01 / UX-01 / UX-02 (A-01): the crash froze with no impact,
+  and taps the player was already making landed on the overlay buttons,
+  starting unwanted ads (an AdMob policy risk) or skipping results.
+  The brief sets the lock at 400 ms; the UX review's A-01 says 350 ms.
+  400 ms was used as briefed.
+- **Agent:** engineer
+- **Files:** `lib/game/probe_game.dart`, `lib/ui/game_screen.dart`,
+  `test/game_screen_test.dart`, `test/support/fakes.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #3; `ux-review.md` A-01; spec AD-3, §7
+
+## #0011 — 2026-10-08 — CHANGE — No ad loaded: skip the revive offer; ad buttons update live
+- **What:** (1) After the crash beat, the revive offer shows only if a
+  revive is unused **and** a rewarded ad is loaded; otherwise the game goes
+  straight to results. (2) `AdService` exposes `rewardedReadyListenable`
+  (`ValueListenable<bool>`), updated whenever a rewarded ad loads, is
+  shown, or fails. The revive button and the results "2× crystals" button
+  rebuild from it, so they switch from "No ad available" to active as soon
+  as an ad finishes loading. AD-4's "No ad available" fallback stays on the
+  2× button. Tests run with ads disabled and with a fake `AdService` that
+  flips readiness.
+- **Why:** A-08 / UX-09: with no ad, players waited 5 s in front of a
+  disabled button; spec §7 already says "Crashed --> Results: No revive
+  available". A-09 / UX-10: the buttons read the ad state once and stayed
+  stale. The UX review lists A-08 as needing owner OK (D-UX-1); the UX
+  plan puts it in PR 1 as within spec §7, so it is built as briefed.
+- **Agent:** engineer
+- **Files:** `lib/services/ad_service.dart`, `lib/ui/game_screen.dart`,
+  `test/game_screen_test.dart`, `test/support/fakes.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #4; `ux-review.md` A-08, A-09, D-UX-1; spec §7, AD-4, US-1
+
+## #0012 — 2026-10-08 — CHANGE — Game screen fits the phone: immersive mode, inset HUD, visible deadly floor
+- **What:** (1) Entering `GameScreen` sets `SystemUiMode.immersiveSticky`;
+  leaving it restores `SystemUiMode.edgeToEdge`. (2) The screen passes
+  `MediaQuery.viewPaddingOf(context)` to `ProbeGame`; the HUD top is
+  `max(height × 0.05, inset top + 8 dp)` (exposed as `ProbeGame.hudTop`,
+  pure helper `hudTopFor`), and the HUD also clears a left inset. (3) The
+  revive/results panels sit inside `SafeArea`. (4) The deadly floor is
+  drawn as a red band (`#FF5252`, 70% alpha) from y = 98.5 u to the bottom
+  with a solid 0.4 u top line; the ceiling stays safe and undrawn. The
+  A-05 "pulse during the first 3 runs" was not built (not in the brief).
+  Tests: HUD top ≥ 48 with a 48 dp inset; 5% without; immersive on enter
+  and edge-to-edge on leave via a mocked platform channel.
+- **Why:** FEEL-11 / UX-06 (A-06): the status bar drew over the HUD and the
+  gesture handle over the floor. FEEL-09 / UX-05 (A-05): the bottom edge
+  kills but wasn't drawn, so deaths looked like they happened "on nothing".
+- **Agent:** engineer
+- **Files:** `lib/game/probe_game.dart`, `lib/ui/game_screen.dart`,
+  `test/game_screen_test.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #5; `ux-review.md` A-05, A-06
+
+## #0013 — 2026-10-08 — CHANGE — Run events and game feel: haptics, shake, hit-stop, particles, near-miss pop-up
+- **What:** `RunSession` (pure Dart, `lib/logic`) records a `RunEvent`
+  per occurrence: `crash`, `shieldHit`, `nearMiss`, `crystal`, `magnet`,
+  `floorBounce`, `newBest` (once per run, only when a best exists, same
+  floor rule as the results' "NEW BEST!"), `headStartEnd` (once, only with
+  Head Start). `RunSession` now takes the player's `bestDistance`.
+  `ProbeGame` drains the events after each update and turns them into
+  render-only feedback: crash → heavy haptic + the crash beat from #0010
+  (now event-driven); shield hit → medium haptic, 0.25 s decaying shake
+  (1 u) and an 80 ms hit-stop; near miss → light haptic (max one per
+  300 ms, A-29) and a "CLOSE! +2 ◆" pop-up (orange, rises 6 u, fades over
+  700 ms, max 2 on screen, A-03); crystal → 4 cyan sparks over 250 ms
+  (A-17), no haptic. All haptics go through `lib/game/haptics.dart` with one
+  `Haptics.enabled` switch, on by default. `magnet`, `floorBounce` and
+  `headStartEnd` have no feedback yet (their A-14/A-15 designs are not in
+  PR 1); `newBest` is used by the next change. No physics or Tuning value
+  changed. Tests: one unit test per event (exactly once per occurrence),
+  plus widget tests that a crash sends one heavy impact and the switch
+  silences it.
+- **Why:** A-00 (shared prerequisite), A-03, FEEL-07, A-29: crashes and
+  near misses gave no feedback, so the game "feels cheap" and the
+  near-miss reward was invisible. Haptics default follows the pending
+  owner decision D4 (recommended "on"); the switch lets D3's settings
+  screen add a toggle later.
+- **Agent:** engineer
+- **Files:** `lib/logic/run_session.dart`, `lib/game/probe_game.dart`,
+  `lib/game/haptics.dart` (new), `test/logic/run_session_test.dart`,
+  `test/game_screen_test.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #6, D3, D4; `ux-review.md` A-00, A-03, A-17, A-29; #0010
+
+## #0014 — 2026-10-08 — CHANGE — Best-distance chase: HUD line, labelled marker, NEW BEST! banner
+- **What:** While the player has a best, the HUD shows "BEST <n> m" in
+  gold (`#FFD54F`, `size.y × 0.022`) under the distance; once passed it
+  reads "NEW BEST". The in-world best marker is now 1.0 u wide at full
+  alpha with a "BEST" label at its top (was 0.6 u, 53% alpha, unlabelled).
+  On the `newBest` run event (#0013) a "NEW BEST!" banner appears at 30%
+  screen height (`size.y × 0.045`), scales 0.6× → 1.0× over 150 ms, holds
+  800 ms, and fades over 300 ms. Tests: best-line text, banner
+  scale/alpha curve, and a widget test that passing the best shows the
+  banner and it clears after ~1.25 s. Thousands separators (A-25) are not
+  part of PR 1.
+- **Why:** A-04 / UX-04: the record was invisible until <1 s before
+  reaching it and passing it gave no moment; "chase your own record" is
+  the core hook (spec §2).
+- **Agent:** engineer
+- **Files:** `lib/game/probe_game.dart`, `test/game_screen_test.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #7; `ux-review.md` A-04; spec §2, §8; #0013
+
+## #0015 — 2026-10-08 — CHANGE — Smooth rendering between physics steps
+- **What:** `RunSession` keeps the scroll, probe height and pickup
+  positions from before each fixed step and exposes
+  `alpha = accumulator / fixedStep` (clamped 0..1; 1 outside `playing`)
+  plus interpolated `renderScroll`, `renderProbeY`, `renderPickupX/Y`
+  (hand-written lerp, still no Flutter in `lib/logic`). The previous state
+  is reset to the current one in the constructor and in `revive()`, so the
+  probe never streaks from the crash spot. `ProbeGame` draws stars, gates,
+  pickups, the best marker, particles and the probe from the interpolated
+  values. Physics is unchanged: the existing determinism tests pass, a new
+  test runs whole vs. 1.5-step updates to the same state, and a seeded bot
+  run (4 seeds, shield/magnet/head start on) printed bit-identical final
+  states on `origin/main` and this branch.
+- **Why:** FEEL-02: with 120 Hz physics drawn at the screen's refresh rate,
+  the drawn position jumped by 0 or 2 steps on some frames (~2 visible
+  stutters per second in the tech lead's simulation).
+- **Agent:** engineer
+- **Files:** `lib/logic/run_session.dart`, `lib/game/probe_game.dart`,
+  `test/logic/run_session_test.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #8; spec GAME-1
+
+## #0016 — 2026-10-08 — CHANGE — Probe stays visible while invincible; square rock corners
+- **What:** (1) During invincibility (revive / shield grace) the probe's
+  "off" blink phase draws it at 35% opacity instead of not drawing it
+  (same 0.2 s blink cycle; pure helper `ProbeGame.probeOpacity`, unit
+  tested to never return 0). (2) Rock gates are drawn with square corners
+  (were 3 u rounded), so the art matches the square hitbox. No hit radius,
+  look-ahead, or `Tuning` value changed.
+- **Why:** FEEL-08 / UX-12: the probe vanished for half of each blink,
+  making steering through the next gap guesswork. FEEL-05 (art only): the
+  rounded art hid up to ~10 dp of rock that still killed ("invisible rock"
+  deaths). The hitbox side of FEEL-05 is for the later tuning PR (D2).
+- **Agent:** engineer
+- **Files:** `lib/game/probe_game.dart`, `test/game_screen_test.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #9, D2; `ux-review.md` A-11
+
+## #0017 — 2026-10-08 — CHANGE — Results screen shows an "Upgrade ready" shortcut
+- **What:** When the player can afford an upgrade after a run, the results
+  panel shows an outlined button under PLAY AGAIN, e.g. "Upgrade ready:
+  Crystal Value Lv1 – 100 ◆", naming the cheapest affordable next level
+  (ties follow the spec §4 table order); it opens the Upgrades screen.
+  Nothing shows when no upgrade is affordable. New pure helper
+  `Upgrades.cheapestAffordable(levels, crystals)` with unit tests; widget
+  tests for the shown/hidden cases and that it opens Upgrades. Placed under
+  PLAY AGAIN as in the spec §8 wireframe. The A-18 "Next upgrade: … to go"
+  text for the not-affordable case was not built (brief: hide it).
+- **Why:** Spec §8 ResultsScreen wireframe lists "UpgradesShortcut"; it was
+  missing (A-18 / UX-19), weakening the "one more upgrade" hook at the
+  moment the player has crystals.
+- **Agent:** engineer
+- **Files:** `lib/logic/upgrades.dart`, `lib/ui/game_screen.dart`,
+  `test/logic/upgrades_test.dart` (new), `test/game_screen_test.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #10; `ux-review.md` A-18; spec §8, US-3
+
+## #0018 — 2026-10-08 — CHANGE — Cheaper rendering and instant "Play again" on the same game
+- **What:** (1) HUD text uses cached `TextPainter`s that are laid out again
+  only when their text, size or colour changes; fading text (pop-ups,
+  banner) fades through a layer instead of a new layout; digits use
+  tabular figures. Painters are disposed in `ProbeGame.onDispose`.
+  (2) Paints are static or reused (no `Paint()` per draw call), paths are
+  reused, and one shared `Random` serves the thruster flicker, effects and
+  the star field (the flicker created a new `Random` every frame).
+  (3) "Play again" calls `ProbeGame.newRun(upgradeLevels:, bestDistance:)`
+  on the same game instead of building a new game and `GameWidget`.
+  (4) `GameController.completeRun` applies the run and queues the save
+  without awaiting it, so results show at once; `SaveStore` still writes
+  saves in order (GAME-6). Tests: Play again keeps the same `GameWidget`
+  element and game, returns to `ready` and carries the new best; results
+  appear while a save is still pending; HUD text is not re-laid out over
+  20 unchanged frames.
+- **Why:** FEEL-12: per-frame `TextPainter` layouts and allocations cause
+  frame spikes. FEEL-13 / GAME-4: restarting remounted the game widget;
+  reusing it makes "one more run" instant.
+- **Agent:** engineer
+- **Files:** `lib/game/probe_game.dart`, `lib/ui/game_screen.dart`,
+  `lib/app/game_controller.dart`, `test/game_screen_test.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #11; spec GAME-4, GAME-6
+
+## #0019 — 2026-10-08 — CHANGE — QA failure-path tests for UX PR 1
+- **What:** Added `test/qa_failure_paths_test.dart` (14 tests): revive then
+  a second crash goes to results with no second offer and applies the run
+  once; the revive countdown stays paused while the ad is open; back while
+  the revive ad is open is ignored; back during the 500 ms crash beat saves
+  the run once and no revive offer appears afterwards; leaving by back
+  (before the first tap, and from results) restores edge-to-edge; taps on
+  PLAY AGAIN inside the 400 ms lock don't restart and a tap after it does;
+  the results upgrade shortcut shows when crystals equal the cost exactly
+  and hides one crystal short; haptics per event (shield = one medium,
+  near miss = light with max one per 300 ms, none on thrust or crystals)
+  and the off switch silencing crash, shield and near miss. Mutation
+  checks: 19 guards broken one at a time in `lib/`; before this change 4
+  survived (near-miss haptic throttle, shield haptic, countdown pause
+  during the ad, floor drawing); the new tests kill the first 3 (floor
+  drawing is visual: device checklist). No product code changed.
+- **Why:** QA verification of PR #3 (UX PR 1): these failure paths were
+  not covered, so the features could break without a red test.
+- **Agent:** qa-engineer
+- **Files:** `test/qa_failure_paths_test.dart` (new)
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #1–#6, #10; `ux-review.md` A-01, A-06, A-07, A-08, A-18, A-29; #0008–#0013, #0017

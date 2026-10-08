@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flame/game.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../app/game_controller.dart';
 import '../game/probe_game.dart';
 import '../logic/run_session.dart';
+import '../logic/upgrades.dart';
 import 'upgrades_screen.dart';
 
 /// One play session: the game plus revive and results overlays.
@@ -20,17 +23,34 @@ class GameScreen extends StatefulWidget {
 }
 
 class _GameScreenState extends State<GameScreen> {
+  /// Crash beat (FEEL-01, A-01): the crash plays out on screen for this long
+  /// before any overlay appears.
+  static const crashBeat = Duration(milliseconds: 500);
+
   late ProbeGame _game;
   RunResult? _result;
   bool _newBest = false;
   bool _doubled = false;
   bool _busy = false;
 
+  /// Set when the current run has been finished and applied; a run is
+  /// applied to progress at most once (A-20 / UX-21).
+  bool _finished = false;
+
+  /// Runs during the crash beat; when it fires the revive offer or the
+  /// results appear.
+  Timer? _beatTimer;
+  bool _offerRevive = false;
+
   GameController get c => widget.controller;
 
   @override
   void initState() {
     super.initState();
+    // Full screen while playing: no status bar over the HUD and no gesture
+    // handle over the deadly floor (FEEL-11, A-06). Swiping from an edge
+    // shows the bars briefly.
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _game = _makeGame();
   }
 
@@ -45,21 +65,38 @@ class _GameScreenState extends State<GameScreen> {
 
   void _onPhase() {
     if (!mounted) return;
-    if (_game.phase.value == RunPhase.crashed) {
-      final s = _game.session;
-      // No revive left: go straight to results.
-      if (s == null || !s.canRevive) {
-        _finish();
-        return;
-      }
+    if (_game.phase.value == RunPhase.crashed &&
+        !_finished &&
+        _beatTimer == null) {
+      _beatTimer = Timer(crashBeat, _afterCrashBeat);
     }
     setState(() {});
   }
 
-  Future<void> _finish() async {
+  void _afterCrashBeat() {
+    _beatTimer = null;
+    if (!mounted || _finished) return;
+    final s = _game.session;
+    // No revive available (already used, or no rewarded ad loaded): go
+    // straight to results (spec §7 "Crashed --> Results"; A-08), instead of
+    // a 5 s wait in front of a disabled button.
+    if (s == null || !s.canRevive || !c.ads.rewardedReady) {
+      _finish();
+      return;
+    }
+    setState(() => _offerRevive = true);
+  }
+
+  void _finish() {
+    // Two paths can land here for one run (double tap on "No thanks", or the
+    // countdown ending as the player taps). Only the first one counts.
+    if (_finished) return;
+    _finished = true;
+    _beatTimer?.cancel();
+    _beatTimer = null;
     final result = _game.finish();
     if (result == null) return;
-    final best = await c.completeRun(result);
+    final best = c.completeRun(result); // save stays queued, not awaited
     if (!mounted) return;
     setState(() {
       _result = result;
@@ -75,9 +112,10 @@ class _GameScreenState extends State<GameScreen> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (watched) {
+      _offerRevive = false;
       _game.revive();
     } else {
-      await _finish();
+      _finish();
     }
   }
 
@@ -102,12 +140,18 @@ class _GameScreenState extends State<GameScreen> {
       Navigator.of(context).pop();
       return;
     }
-    _game.phase.removeListener(_onPhase);
     setState(() {
       _busy = false;
       _result = null;
-      _game = _makeGame(); // picks up any new upgrade levels
+      _finished = false;
+      _offerRevive = false;
     });
+    // Same game, same GameWidget: just a new run with any new upgrade
+    // levels and the new best (GAME-4, FEEL-13).
+    _game.newRun(
+      upgradeLevels: c.progress.upgrades,
+      bestDistance: c.progress.bestDistance,
+    );
   }
 
   Future<void> _openUpgrades() async {
@@ -118,13 +162,33 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   void dispose() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    _beatTimer?.cancel();
     _game.phase.removeListener(_onPhase);
     super.dispose();
+  }
+
+  /// Android back / back swipe mid-run (FEEL-03, A-07): instead of closing
+  /// the screen and losing the run, end it through the normal finish path
+  /// so its crystals are saved and the results show. No pause state here
+  /// (owner decision D1 pending).
+  void _onBack(bool didPop, Object? _) {
+    if (didPop || _busy) return; // an ad is on screen: ignore
+    _finish();
   }
 
   @override
   Widget build(BuildContext context) {
     final phase = _game.phase.value;
+    return PopScope(
+      canPop: phase == RunPhase.ready || _result != null,
+      onPopInvokedWithResult: _onBack,
+      child: _buildBody(phase),
+    );
+  }
+
+  Widget _buildBody(RunPhase phase) {
+    _game.viewPadding = MediaQuery.viewPaddingOf(context);
     return Scaffold(
       backgroundColor: const Color(0xFF070B1A),
       body: Stack(
@@ -136,28 +200,83 @@ class _GameScreenState extends State<GameScreen> {
               child: GameWidget(key: ObjectKey(_game), game: _game),
             ),
           ),
-          if (phase == RunPhase.crashed && _result == null)
-            _ReviveOverlay(
-              adReady: c.ads.rewardedReady,
-              busy: _busy,
-              onWatch: _watchReviveAd,
-              onDecline: _finish,
+          if (phase == RunPhase.crashed && _offerRevive && _result == null)
+            _EntryGuard(
+              key: const ValueKey('revive'),
+              child: _ReviveOverlay(
+                adReady: c.ads.rewardedReadyListenable,
+                busy: _busy,
+                onWatch: _watchReviveAd,
+                onDecline: _finish,
+              ),
             ),
           if (_result != null)
-            _ResultsOverlay(
-              result: _result!,
-              newBest: _newBest,
-              best: c.progress.bestDistance,
-              totalCrystals: c.progress.crystals,
-              canDouble: !_doubled && c.ads.rewardedReady,
-              doubled: _doubled,
-              busy: _busy,
-              onDouble: _watchDoubleAd,
-              onPlayAgain: () => _leaveResults(playAgain: true),
-              onUpgrades: _openUpgrades,
-              onHome: () => _leaveResults(playAgain: false),
+            _EntryGuard(
+              key: const ValueKey('results'),
+              child: _ResultsOverlay(
+                result: _result!,
+                newBest: _newBest,
+                best: c.progress.bestDistance,
+                totalCrystals: c.progress.crystals,
+                upgradeOffer: Upgrades.cheapestAffordable(
+                    c.progress.upgrades, c.progress.crystals),
+                adReady: c.ads.rewardedReadyListenable,
+                doubled: _doubled,
+                busy: _busy,
+                onDouble: _watchDoubleAd,
+                onPlayAgain: () => _leaveResults(playAgain: true),
+                onUpgrades: _openUpgrades,
+                onHome: () => _leaveResults(playAgain: false),
+              ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Fades an overlay in and ignores taps for its first [lock] (FEEL-01,
+/// A-01), so taps the player was already making at the crash can't start
+/// an ad, decline a revive, or skip the results by accident.
+class _EntryGuard extends StatefulWidget {
+  const _EntryGuard({super.key, required this.child});
+
+  static const lock = Duration(milliseconds: 400);
+  static const fadeIn = Duration(milliseconds: 250);
+
+  final Widget child;
+
+  @override
+  State<_EntryGuard> createState() => _EntryGuardState();
+}
+
+class _EntryGuardState extends State<_EntryGuard> {
+  bool _armed = false;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer(_EntryGuard.lock, () {
+      if (mounted) setState(() => _armed = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      ignoring: !_armed,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: _EntryGuard.fadeIn,
+        builder: (context, v, child) => Opacity(opacity: v, child: child),
+        child: widget.child,
       ),
     );
   }
@@ -171,7 +290,7 @@ class _ReviveOverlay extends StatefulWidget {
     required this.onDecline,
   });
 
-  final bool adReady;
+  final ValueListenable<bool> adReady;
   final bool busy;
   final VoidCallback onWatch;
   final VoidCallback onDecline;
@@ -212,10 +331,13 @@ class _ReviveOverlayState extends State<_ReviveOverlay> {
       const SizedBox(height: 8),
       Text('$_left', style: const TextStyle(fontSize: 40)),
       const SizedBox(height: 16),
-      FilledButton.icon(
-        onPressed: widget.adReady && !widget.busy ? widget.onWatch : null,
-        icon: const Icon(Icons.play_circle),
-        label: Text(widget.adReady ? 'Watch ad to revive' : 'No ad available'),
+      ValueListenableBuilder<bool>(
+        valueListenable: widget.adReady,
+        builder: (context, ready, _) => FilledButton.icon(
+          onPressed: ready && !widget.busy ? widget.onWatch : null,
+          icon: const Icon(Icons.play_circle),
+          label: Text(ready ? 'Watch ad to revive' : 'No ad available'),
+        ),
       ),
       TextButton(
         onPressed: widget.busy ? null : widget.onDecline,
@@ -231,7 +353,8 @@ class _ResultsOverlay extends StatelessWidget {
     required this.newBest,
     required this.best,
     required this.totalCrystals,
-    required this.canDouble,
+    required this.upgradeOffer,
+    required this.adReady,
     required this.doubled,
     required this.busy,
     required this.onDouble,
@@ -244,7 +367,8 @@ class _ResultsOverlay extends StatelessWidget {
   final bool newBest;
   final int best;
   final int totalCrystals;
-  final bool canDouble;
+  final UpgradeOffer? upgradeOffer;
+  final ValueListenable<bool> adReady;
   final bool doubled;
   final bool busy;
   final VoidCallback onDouble;
@@ -275,10 +399,13 @@ class _ResultsOverlay extends StatelessWidget {
           style: const TextStyle(color: Colors.white70)),
       const SizedBox(height: 12),
       if (!doubled && earned > 0)
-        OutlinedButton.icon(
-          onPressed: canDouble && !busy ? onDouble : null,
-          icon: const Icon(Icons.play_circle),
-          label: Text(canDouble ? 'Watch ad: 2× crystals' : 'No ad available'),
+        ValueListenableBuilder<bool>(
+          valueListenable: adReady,
+          builder: (context, ready, _) => OutlinedButton.icon(
+            onPressed: ready && !busy ? onDouble : null,
+            icon: const Icon(Icons.play_circle),
+            label: Text(ready ? 'Watch ad: 2× crystals' : 'No ad available'),
+          ),
         ),
       const SizedBox(height: 8),
       FilledButton(
@@ -286,6 +413,15 @@ class _ResultsOverlay extends StatelessWidget {
         style: FilledButton.styleFrom(minimumSize: const Size(200, 52)),
         child: const Text('PLAY AGAIN', style: TextStyle(fontSize: 18)),
       ),
+      if (upgradeOffer case final offer?) ...[
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: busy ? null : onUpgrades,
+          icon: const Icon(Icons.upgrade),
+          label: Text('Upgrade ready: ${offer.info.name} '
+              'Lv${offer.nextLevel} – ${offer.cost} ◆'),
+        ),
+      ],
       Row(mainAxisSize: MainAxisSize.min, children: [
         TextButton(onPressed: busy ? null : onUpgrades, child: const Text('Upgrades')),
         TextButton(onPressed: busy ? null : onHome, child: const Text('Home')),
@@ -304,14 +440,16 @@ class _Panel extends StatelessWidget {
     return Container(
       color: const Color(0xAA000000),
       alignment: Alignment.center,
-      child: Container(
-        margin: const EdgeInsets.all(24),
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: const Color(0xFF151B33),
-          borderRadius: BorderRadius.circular(20),
+      child: SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF151B33),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: children),
         ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: children),
       ),
     );
   }
