@@ -87,3 +87,11 @@ Future<void> crashNow(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 16));
   await tester.pump(const Duration(milliseconds: 16));
 }
+
+/// `pumpAndSettle` never settles while Flame's game loop runs, so route
+/// transitions are pumped for a fixed time instead.
+Future<void> settle(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
+  await tester.pump(const Duration(milliseconds: 500));
+}

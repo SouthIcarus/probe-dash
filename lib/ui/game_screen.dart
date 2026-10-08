@@ -131,9 +131,26 @@ class _GameScreenState extends State<GameScreen> {
     super.dispose();
   }
 
+  /// Android back / back swipe mid-run (FEEL-03, A-07): instead of closing
+  /// the screen and losing the run, end it through the normal finish path
+  /// so its crystals are saved and the results show. No pause state here
+  /// (owner decision D1 pending).
+  void _onBack(bool didPop, Object? _) {
+    if (didPop || _busy) return; // an ad is on screen: ignore
+    _finish();
+  }
+
   @override
   Widget build(BuildContext context) {
     final phase = _game.phase.value;
+    return PopScope(
+      canPop: phase == RunPhase.ready || _result != null,
+      onPopInvokedWithResult: _onBack,
+      child: _buildBody(phase),
+    );
+  }
+
+  Widget _buildBody(RunPhase phase) {
     return Scaffold(
       backgroundColor: const Color(0xFF070B1A),
       body: Stack(

@@ -147,3 +147,20 @@ new entry that references the old one instead. Newest entries at the bottom.
   `test/game_screen_test.dart`, `test/upgrades_screen_test.dart`,
   `test/support/fakes.dart`, `test/logic/run_session_test.dart`
 - **Refs:** AJ_PROBE `ux-plan.md` PR 1 #1; `ux-review.md` A-20, A-22; spec US-3, GAME-6, AD-1
+
+## #0009 — 2026-10-08 — CHANGE — Back gesture mid-run ends the run instead of losing it
+- **What:** `GameScreen` is wrapped in `PopScope`. Back may leave the
+  screen only before the first tap (`ready`) or once results show. A back
+  gesture while playing or crashed (revive offer) goes through the normal
+  `_finish()` path: the run is saved and the results screen shows. Back
+  while a rewarded ad is in flight is ignored. No pause state is added
+  (owner decision D1 is pending). Tests use `handlePopRoute()` for back
+  mid-run, back on the revive offer, and back before the first tap.
+- **Why:** FEEL-03 / UX-07 (A-07): an accidental edge swipe closed the game
+  mid-run, so the run was never counted and its crystals were lost. The
+  UX review's A-07 proposes a PAUSED panel; per the brief, that waits for
+  D1, and this PR uses the existing finish path instead.
+- **Agent:** engineer
+- **Files:** `lib/ui/game_screen.dart`, `test/game_screen_test.dart`,
+  `test/support/fakes.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #2, D1; `ux-review.md` A-07; spec §7, GAME-6
