@@ -220,4 +220,104 @@ void main() {
     expect(s.finished, isTrue);
     expect(s.phase, RunPhase.over);
   });
+
+  group('A-00 run events', () {
+    int count(List<RunEvent> all, RunEvent e) =>
+        all.where((x) => x == e).length;
+
+    /// Steps the run, collecting every event, until [until] or [seconds].
+    List<RunEvent> run(RunSession s, double seconds,
+        {bool Function()? until, void Function()? beforeStep}) {
+      final all = <RunEvent>[];
+      for (var t = 0.0; t < seconds && s.phase == RunPhase.playing;
+          t += Tuning.fixedStep) {
+        beforeStep?.call();
+        s.update(Tuning.fixedStep);
+        all.addAll(s.drainEvents());
+        if (until != null && until()) break;
+      }
+      return all;
+    }
+
+    test('falling onto the floor without a shield: one crash', () {
+      final s = session()..tap();
+      final all = run(s, 5);
+      expect(s.phase, RunPhase.crashed);
+      expect(count(all, RunEvent.crash), 1);
+      expect(count(all, RunEvent.shieldHit), 0);
+      expect(count(all, RunEvent.floorBounce), 0);
+    });
+
+    test('shield absorbs the floor: one shieldHit + bounce, no crash', () {
+      final s = session(levels: {UpgradeType.shield: 1})..tap();
+      final all = run(s, 5, until: () => s.shieldHitsLeft == 0);
+      expect(count(all, RunEvent.shieldHit), 1);
+      expect(count(all, RunEvent.floorBounce), 1);
+      expect(count(all, RunEvent.crash), 0);
+      expect(s.phase, RunPhase.playing);
+    });
+
+    test('a gate passed with under 2.2 u to spare: one nearMiss', () {
+      final s = session()..tap();
+      final y = s.probeY;
+      s.gates.clear();
+      // Gap top 1 u above the probe's top: tight but clear.
+      final gap = Gate(s.probeWorldX + Tuning.probeRadius + 1,
+          y + 12 - Tuning.probeRadius - 1, 24);
+      s.gates.add(gap);
+      final all = run(s, 1, until: () => gap.passed, beforeStep: () {
+        s.probeY = y; // fly level through the gate
+        s.velocityY = 0;
+      });
+      expect(gap.passed, isTrue);
+      expect(gap.hit, isFalse);
+      expect(count(all, RunEvent.nearMiss), 1);
+      expect(s.nearMisses, 1);
+    });
+
+    test('each pickup collected gives one crystal / magnet event', () {
+      final s = session()..tap();
+      s.pickups
+        ..add(Pickup(PickupKind.crystal, s.probeWorldX, s.probeY))
+        ..add(Pickup(PickupKind.crystal, s.probeWorldX, s.probeY))
+        ..add(Pickup(PickupKind.magnet, s.probeWorldX, s.probeY));
+      s.update(Tuning.fixedStep);
+      final all = s.drainEvents();
+      expect(count(all, RunEvent.crystal), 2);
+      expect(count(all, RunEvent.magnet), 1);
+      expect(s.drainEvents(), isEmpty); // drained
+    });
+
+    test('passing the best distance: exactly one newBest', () {
+      final s = RunSession(
+          worldWidth: 180, upgradeLevels: const {}, bestDistance: 20, seed: 1)
+        ..tap();
+      s.invincibleSeconds = 1e9;
+      final all = run(s, 10, beforeStep: () {
+        if (s.probeY > 60) s.tap();
+      });
+      expect(s.distanceMeters, greaterThan(40));
+      expect(count(all, RunEvent.newBest), 1);
+      expect(s.passedBest, isTrue);
+    });
+
+    test('no newBest when there is no best yet', () {
+      final s = session()..tap();
+      s.invincibleSeconds = 1e9;
+      final all = run(s, 5, beforeStep: () {
+        if (s.probeY > 60) s.tap();
+      });
+      expect(count(all, RunEvent.newBest), 0);
+    });
+
+    test('head start ending: exactly one headStartEnd; none without it', () {
+      final s = session(levels: {UpgradeType.headStart: 1})..tap();
+      final all = run(s, 6);
+      expect(s.inHeadStart, isFalse);
+      expect(count(all, RunEvent.headStartEnd), 1);
+
+      final none = session()..tap();
+      expect(count(run(none, 2), RunEvent.headStartEnd), 0);
+    });
+  });
 }

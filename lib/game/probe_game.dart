@@ -7,6 +7,7 @@ import 'package:flutter/painting.dart';
 import '../logic/run_session.dart';
 import '../logic/tuning.dart';
 import '../logic/upgrades.dart';
+import 'haptics.dart';
 
 /// Draws a [RunSession] and drives it with Flame's game loop.
 ///
@@ -63,6 +64,23 @@ class ProbeGame extends FlameGame {
   static const double crashFlashSeconds = 0.12;
   static const int crashDebris = 12;
 
+  /// Shield hit (A-00, FEEL-07): a lighter shake and a short hit-stop.
+  static const double shieldShakeSeconds = 0.25;
+  static const double shieldShakeUnits = 1.0;
+  static const double hitStopSeconds = 0.08;
+
+  /// Near-miss pop-up "CLOSE! +2 ◆" (A-03): starts 4 u above the probe,
+  /// rises 6 u and fades over 700 ms; at most 2 on screen.
+  static const double popupSeconds = 0.7;
+  static const int maxPopups = 2;
+
+  /// A-29: at most one near-miss haptic per 300 ms.
+  static const double nearMissHapticGap = 0.3;
+
+  double _hitStopLeft = 0;
+  double _lastNearMissHaptic = -1;
+  final List<_Popup> _popups = [];
+
   double get _scale => size.y / Tuning.worldHeight;
   double get _worldWidth => size.x / _scale;
 
@@ -77,15 +95,20 @@ class ProbeGame extends FlameGame {
 
   void newRun() {
     final rnd = math.Random();
-    _session = RunSession(worldWidth: _worldWidth, upgradeLevels: upgradeLevels);
+    _session = RunSession(
+        worldWidth: _worldWidth,
+        upgradeLevels: upgradeLevels,
+        bestDistance: bestDistance);
     _stars = List.generate(
       70,
       (_) => _Star(rnd.nextDouble(), rnd.nextDouble() * Tuning.worldHeight,
           0.1 + rnd.nextDouble() * 0.5),
     );
     _particles.clear();
+    _popups.clear();
     _shakeLeft = 0;
     _flashLeft = 0;
+    _hitStopLeft = 0;
     phase.value = RunPhase.ready;
   }
 
@@ -104,14 +127,42 @@ class ProbeGame extends FlameGame {
 
   void _syncPhase() {
     final p = _session?.phase ?? RunPhase.ready;
-    if (phase.value == p) return;
-    if (p == RunPhase.crashed) _onCrash();
-    phase.value = p;
+    if (phase.value != p) phase.value = p;
   }
 
-  void _onCrash() {
-    final s = _session;
-    if (s == null) return;
+  /// Turns the run's events into feedback (A-00, FEEL-07). Render-only:
+  /// nothing here changes the simulation.
+  void _handleEvents(RunSession s) {
+    for (final e in s.drainEvents()) {
+      switch (e) {
+        case RunEvent.crash:
+          Haptics.crash();
+          _onCrash(s);
+        case RunEvent.shieldHit:
+          Haptics.shieldHit();
+          _shake(shieldShakeUnits, shieldShakeSeconds);
+          _hitStopLeft = hitStopSeconds;
+        case RunEvent.nearMiss:
+          if (_time - _lastNearMissHaptic >= nearMissHapticGap ||
+              _lastNearMissHaptic < 0) {
+            _lastNearMissHaptic = _time;
+            Haptics.nearMiss();
+          }
+          if (_popups.length >= maxPopups) _popups.removeAt(0);
+          _popups.add(_Popup('CLOSE! +${Tuning.nearMissBonus} ◆', s.probeY));
+        case RunEvent.crystal:
+          _burst(s.probeWorldX, s.probeY, 4, const [Color(0xFF4DD0E1)],
+              minSpeed: 12, maxSpeed: 12, life: 0.25, size: 0.6);
+        case RunEvent.magnet:
+        case RunEvent.floorBounce:
+        case RunEvent.newBest:
+        case RunEvent.headStartEnd:
+          break;
+      }
+    }
+  }
+
+  void _onCrash(RunSession s) {
     _shake(crashShakeUnits, crashShakeSeconds);
     _flashLeft = crashFlashSeconds;
     _burst(s.probeWorldX, s.probeY, crashDebris,
@@ -154,6 +205,10 @@ class ProbeGame extends FlameGame {
   }
 
   void _updateEffects(double dt) {
+    for (final p in _popups) {
+      p.age += dt;
+    }
+    _popups.removeWhere((p) => p.age >= popupSeconds);
     if (_shakeLeft > 0) _shakeLeft = math.max(0, _shakeLeft - dt);
     if (_flashLeft > 0) _flashLeft = math.max(0, _flashLeft - dt);
     for (final p in _particles) {
@@ -175,7 +230,15 @@ class ProbeGame extends FlameGame {
   void update(double dt) {
     super.update(dt);
     _time += dt;
-    _session?.update(dt);
+    final s = _session;
+    if (s != null) {
+      if (_hitStopLeft > 0) {
+        _hitStopLeft -= dt; // brief freeze on a shield hit; physics paused
+      } else {
+        s.update(dt);
+      }
+      _handleEvents(s);
+    }
     _syncPhase();
     _updateEffects(dt);
   }
@@ -362,6 +425,13 @@ class ProbeGame extends FlameGame {
         size.y * 0.04, const Color(0xFFFFFFFF));
     _text(canvas, '◆ ${s.rawCrystals}', Offset(left, top + size.y * 0.05),
         size.y * 0.03, const Color(0xFF4DD0E1));
+    for (final p in _popups) {
+      final t = p.age / popupSeconds;
+      final y = (p.y - 4 - 6 * t) * _scale;
+      _text(canvas, p.text, Offset(s.probeX * _scale, y), size.y * 0.028,
+          const Color(0xFFFF9100).withValues(alpha: 1 - t),
+          center: true);
+    }
     if (s.phase == RunPhase.ready) {
       _text(canvas, 'TAP TO FLY', Offset(size.x / 2, size.y * 0.7),
           size.y * 0.04, const Color(0xFFFFFFFF),
@@ -381,6 +451,14 @@ class ProbeGame extends FlameGame {
     )..layout();
     tp.paint(canvas, center ? at.translate(-tp.width / 2, 0) : at);
   }
+}
+
+/// A floating text pop-up anchored above the probe.
+class _Popup {
+  _Popup(this.text, this.y);
+  final String text;
+  final double y; // probe y (world units) when it appeared
+  double age = 0;
 }
 
 /// A render-only particle in world coordinates.

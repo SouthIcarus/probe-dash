@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:probe_dash/game/haptics.dart';
 import 'package:probe_dash/game/probe_game.dart';
 import 'package:probe_dash/logic/run_session.dart';
 import 'package:probe_dash/services/ad_service.dart';
@@ -274,6 +275,40 @@ void main() {
       expect(modes, ['SystemUiMode.immersiveSticky']);
       await tester.pumpWidget(const SizedBox());
       expect(modes, ['SystemUiMode.immersiveSticky', 'SystemUiMode.edgeToEdge']);
+    });
+  });
+
+  group('FEEL-07 haptics', () {
+    late List<Object?> vibrations;
+
+    setUp(() => vibrations = []);
+
+    Future<void> listen(WidgetTester tester) async {
+      tester.binding.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'HapticFeedback.vibrate') {
+          vibrations.add(call.arguments);
+        }
+        return null;
+      });
+      addTearDown(() => tester.binding.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null));
+    }
+
+    testWidgets('crash gives one heavy impact', (tester) async {
+      await listen(tester);
+      await pumpGame(tester, makeController());
+      await crashNow(tester);
+      expect(vibrations, ['HapticFeedbackType.heavyImpact']);
+    });
+
+    testWidgets('the one switch turns haptics off', (tester) async {
+      await listen(tester);
+      Haptics.enabled = false;
+      addTearDown(() => Haptics.enabled = true);
+      await pumpGame(tester, makeController());
+      await crashNow(tester);
+      expect(vibrations, isEmpty);
     });
   });
 }

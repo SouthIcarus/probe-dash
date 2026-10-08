@@ -225,3 +225,33 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Files:** `lib/game/probe_game.dart`, `lib/ui/game_screen.dart`,
   `test/game_screen_test.dart`
 - **Refs:** AJ_PROBE `ux-plan.md` PR 1 #5; `ux-review.md` A-05, A-06
+
+## #0013 — 2026-10-08 — CHANGE — Run events and game feel: haptics, shake, hit-stop, particles, near-miss pop-up
+- **What:** `RunSession` (pure Dart, `lib/logic`) records a `RunEvent`
+  per occurrence: `crash`, `shieldHit`, `nearMiss`, `crystal`, `magnet`,
+  `floorBounce`, `newBest` (once per run, only when a best exists, same
+  floor rule as the results' "NEW BEST!"), `headStartEnd` (once, only with
+  Head Start). `RunSession` now takes the player's `bestDistance`.
+  `ProbeGame` drains the events after each update and turns them into
+  render-only feedback: crash → heavy haptic + the crash beat from #0010
+  (now event-driven); shield hit → medium haptic, 0.25 s decaying shake
+  (1 u) and an 80 ms hit-stop; near miss → light haptic (max one per
+  300 ms, A-29) and a "CLOSE! +2 ◆" pop-up (orange, rises 6 u, fades over
+  700 ms, max 2 on screen, A-03); crystal → 4 cyan sparks over 250 ms
+  (A-17), no haptic. All haptics go through `lib/game/haptics.dart` with one
+  `Haptics.enabled` switch, on by default. `magnet`, `floorBounce` and
+  `headStartEnd` have no feedback yet (their A-14/A-15 designs are not in
+  PR 1); `newBest` is used by the next change. No physics or Tuning value
+  changed. Tests: one unit test per event (exactly once per occurrence),
+  plus widget tests that a crash sends one heavy impact and the switch
+  silences it.
+- **Why:** A-00 (shared prerequisite), A-03, FEEL-07, A-29: crashes and
+  near misses gave no feedback, so the game "feels cheap" and the
+  near-miss reward was invisible. Haptics default follows the pending
+  owner decision D4 (recommended "on"); the switch lets D3's settings
+  screen add a toggle later.
+- **Agent:** engineer
+- **Files:** `lib/logic/run_session.dart`, `lib/game/probe_game.dart`,
+  `lib/game/haptics.dart` (new), `test/logic/run_session_test.dart`,
+  `test/game_screen_test.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #6, D3, D4; `ux-review.md` A-00, A-03, A-17, A-29; #0010
