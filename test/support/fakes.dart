@@ -95,3 +95,10 @@ Future<void> settle(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 500));
   await tester.pump(const Duration(milliseconds: 500));
 }
+
+/// Waits out the 500 ms crash beat and the overlay's 400 ms input lock, so
+/// the revive or results panel is on screen and accepts taps.
+Future<void> waitForOverlay(WidgetTester tester) async {
+  await tester.pump(const Duration(milliseconds: 600)); // beat ends
+  await tester.pump(const Duration(milliseconds: 500)); // lock ends
+}

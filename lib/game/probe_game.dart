@@ -27,6 +27,23 @@ class ProbeGame extends FlameGame {
   late List<_Star> _stars;
   double _time = 0;
 
+  /// One shared random source for render-only effects.
+  static final math.Random _fx = math.Random();
+
+  // Render-only effects (no effect on the simulation).
+  double _shakeLeft = 0; // seconds of shake remaining
+  double _shakeDuration = 0;
+  double _shakeAmplitude = 0; // world units at the start of the shake
+  double _flashLeft = 0; // seconds of white flash remaining
+  final List<_Particle> _particles = [];
+
+  /// Crash beat (FEEL-01, A-01): shake 300 ms up to 1.5 u, white flash at
+  /// 25% fading over 120 ms, and debris flying out and fading over 500 ms.
+  static const double crashShakeSeconds = 0.3;
+  static const double crashShakeUnits = 1.5;
+  static const double crashFlashSeconds = 0.12;
+  static const int crashDebris = 12;
+
   double get _scale => size.y / Tuning.worldHeight;
   double get _worldWidth => size.x / _scale;
 
@@ -47,6 +64,9 @@ class ProbeGame extends FlameGame {
       (_) => _Star(rnd.nextDouble(), rnd.nextDouble() * Tuning.worldHeight,
           0.1 + rnd.nextDouble() * 0.5),
     );
+    _particles.clear();
+    _shakeLeft = 0;
+    _flashLeft = 0;
     phase.value = RunPhase.ready;
   }
 
@@ -65,7 +85,71 @@ class ProbeGame extends FlameGame {
 
   void _syncPhase() {
     final p = _session?.phase ?? RunPhase.ready;
-    if (phase.value != p) phase.value = p;
+    if (phase.value == p) return;
+    if (p == RunPhase.crashed) _onCrash();
+    phase.value = p;
+  }
+
+  void _onCrash() {
+    final s = _session;
+    if (s == null) return;
+    _shake(crashShakeUnits, crashShakeSeconds);
+    _flashLeft = crashFlashSeconds;
+    _burst(s.probeWorldX, s.probeY, crashDebris,
+        const [Color(0xFFE3F2FD), Color(0xFFFF9100)],
+        minSpeed: 20, maxSpeed: 40, life: 0.5, size: 1.2, triangle: true);
+  }
+
+  void _shake(double amplitude, double seconds) {
+    // A new shake never weakens one already running.
+    if (_shakeLeft > 0 &&
+        _shakeAmplitude * _shakeLeft / _shakeDuration >= amplitude) {
+      return;
+    }
+    _shakeAmplitude = amplitude;
+    _shakeDuration = seconds;
+    _shakeLeft = seconds;
+  }
+
+  void _burst(double worldX, double y, int count, List<Color> colors,
+      {required double minSpeed,
+      required double maxSpeed,
+      required double life,
+      required double size,
+      bool triangle = false}) {
+    for (var i = 0; i < count; i++) {
+      final angle = _fx.nextDouble() * math.pi * 2;
+      final speed = minSpeed + _fx.nextDouble() * (maxSpeed - minSpeed);
+      _particles.add(_Particle(
+        x: worldX,
+        y: y,
+        vx: math.cos(angle) * speed,
+        vy: math.sin(angle) * speed,
+        life: life,
+        size: size,
+        spin: _fx.nextDouble() * math.pi * 2,
+        color: colors[i % colors.length],
+        triangle: triangle,
+      ));
+    }
+  }
+
+  void _updateEffects(double dt) {
+    if (_shakeLeft > 0) _shakeLeft = math.max(0, _shakeLeft - dt);
+    if (_flashLeft > 0) _flashLeft = math.max(0, _flashLeft - dt);
+    for (final p in _particles) {
+      p.age += dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+    }
+    _particles.removeWhere((p) => p.age >= p.life);
+  }
+
+  Offset get _shakeOffset {
+    if (_shakeLeft <= 0) return Offset.zero;
+    final a = _shakeAmplitude * _shakeLeft / _shakeDuration; // linear decay
+    return Offset(
+        (_fx.nextDouble() * 2 - 1) * a, (_fx.nextDouble() * 2 - 1) * a);
   }
 
   @override
@@ -74,6 +158,7 @@ class ProbeGame extends FlameGame {
     _time += dt;
     _session?.update(dt);
     _syncPhase();
+    _updateEffects(dt);
   }
 
   @override
@@ -84,6 +169,8 @@ class ProbeGame extends FlameGame {
 
     canvas.save();
     canvas.scale(_scale);
+    final shake = _shakeOffset;
+    canvas.translate(shake.dx, shake.dy);
     _drawStars(canvas, s);
     _drawBestMarker(canvas, s);
     for (final g in s.gates) {
@@ -93,7 +180,16 @@ class ProbeGame extends FlameGame {
       if (!p.collected) _drawPickup(canvas, s, p);
     }
     _drawProbe(canvas, s);
+    _drawParticles(canvas, s);
     canvas.restore();
+
+    if (_flashLeft > 0) {
+      canvas.drawRect(
+          Offset.zero & size.toSize(),
+          Paint()
+            ..color = Color.fromRGBO(
+                255, 255, 255, 0.25 * _flashLeft / crashFlashSeconds));
+    }
 
     _drawHud(canvas, s);
   }
@@ -202,6 +298,32 @@ class ProbeGame extends FlameGame {
     }
   }
 
+  void _drawParticles(Canvas canvas, RunSession s) {
+    final paint = Paint();
+    for (final p in _particles) {
+      final fade = 1 - p.age / p.life;
+      paint.color = p.color.withValues(alpha: p.color.a * fade);
+      final c = Offset(p.x - s.scroll, p.y);
+      if (p.triangle) {
+        final r = p.size * 0.58; // circumradius of a triangle with side p.size
+        final path = Path();
+        for (var k = 0; k < 3; k++) {
+          final a = p.spin + p.age * 8 + k * math.pi * 2 / 3;
+          final pt = c + Offset(math.cos(a) * r, math.sin(a) * r);
+          if (k == 0) {
+            path.moveTo(pt.dx, pt.dy);
+          } else {
+            path.lineTo(pt.dx, pt.dy);
+          }
+        }
+        path.close();
+        canvas.drawPath(path, paint);
+      } else {
+        canvas.drawCircle(c, p.size / 2, paint);
+      }
+    }
+  }
+
   void _drawHud(Canvas canvas, RunSession s) {
     final pad = size.y * 0.02;
     _text(canvas, '${s.distanceMeters.floor()} m', Offset(pad, pad * 2.5),
@@ -227,6 +349,32 @@ class ProbeGame extends FlameGame {
     )..layout();
     tp.paint(canvas, center ? at.translate(-tp.width / 2, 0) : at);
   }
+}
+
+/// A render-only particle in world coordinates.
+class _Particle {
+  _Particle({
+    required this.x,
+    required this.y,
+    required this.vx,
+    required this.vy,
+    required this.life,
+    required this.size,
+    required this.spin,
+    required this.color,
+    required this.triangle,
+  });
+
+  double x;
+  double y;
+  final double vx;
+  final double vy;
+  final double life;
+  final double size;
+  final double spin;
+  final Color color;
+  final bool triangle;
+  double age = 0;
 }
 
 class _Star {

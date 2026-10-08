@@ -164,3 +164,24 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Files:** `lib/ui/game_screen.dart`, `test/game_screen_test.dart`,
   `test/support/fakes.dart`
 - **Refs:** AJ_PROBE `ux-plan.md` PR 1 #2, D1; `ux-review.md` A-07; spec §7, GAME-6
+
+## #0010 — 2026-10-08 — CHANGE — Crash beat and 400 ms input lock on overlays
+- **What:** On a crash the game now plays a 500 ms crash beat before any
+  overlay appears: camera shake (300 ms, up to 1.5 world units, linear
+  decay), a white flash (25% alpha fading over 120 ms) and 12 debris
+  triangles (side 1.2 u, white-blue and orange, 20–40 u/s, fading over
+  500 ms), all drawn with shapes in `ProbeGame` and render-only. After the
+  beat the revive offer or the results appear. Each overlay fades in over
+  250 ms and ignores all taps for its first 400 ms (`IgnorePointer`).
+  Tests: overlay absent at 400 ms and present at 550 ms after the crash;
+  taps on "No thanks" / "Watch ad to revive" 100 ms after it appears do
+  nothing (no ad shown, run not applied); PLAY AGAIN ignores an early tap.
+- **Why:** FEEL-01 / UX-01 / UX-02 (A-01): the crash froze with no impact,
+  and taps the player was already making landed on the overlay buttons,
+  starting unwanted ads (an AdMob policy risk) or skipping results.
+  The brief sets the lock at 400 ms; the UX review's A-01 says 350 ms.
+  400 ms was used as briefed.
+- **Agent:** engineer
+- **Files:** `lib/game/probe_game.dart`, `lib/ui/game_screen.dart`,
+  `test/game_screen_test.dart`, `test/support/fakes.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #3; `ux-review.md` A-01; spec AD-3, §7

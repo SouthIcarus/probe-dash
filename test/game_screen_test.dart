@@ -20,7 +20,7 @@ void main() {
       gameOf(tester).session!.rawCrystals = 7;
       await crashNow(tester);
       expect(gameOf(tester).phase.value, RunPhase.crashed);
-      await tester.pump(const Duration(seconds: 1));
+      await waitForOverlay(tester);
       expect(find.text('CONTINUE?'), findsOneWidget);
 
       // Two taps inside one frame: both reach the button before it rebuilds.
@@ -39,15 +39,16 @@ void main() {
       await pumpGame(tester, c);
       gameOf(tester).session!.rawCrystals = 3;
       await crashNow(tester);
-      await tester.pump(const Duration(seconds: 1));
+      await waitForOverlay(tester);
       expect(find.text('CONTINUE?'), findsOneWidget);
 
       // Let the countdown reach its last second, then tap "No thanks" just
       // before it hits 0 and let it hit 0 too.
-      await tester.pump(const Duration(milliseconds: 3900));
+      // (The offer has been up for 500 ms at this point.)
+      await tester.pump(const Duration(milliseconds: 4300));
       expect(find.text('1'), findsOneWidget);
       await tester.tap(find.text('No thanks'));
-      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.pump(const Duration(seconds: 1));
 
       expect(c.progress.runs, 1);
@@ -101,7 +102,7 @@ void main() {
       final c = makeController(ads: FakeAds(ready: true));
       await pushGame(tester, c);
       await crashNow(tester);
-      await tester.pump(const Duration(seconds: 1));
+      await waitForOverlay(tester);
       expect(find.text('CONTINUE?'), findsOneWidget);
 
       await tester.binding.handlePopRoute();
@@ -118,6 +119,52 @@ void main() {
       await settle(tester);
       expect(find.byType(GameScreen), findsNothing);
       expect(c.progress.runs, 0);
+    });
+  });
+
+  group('FEEL-01 / A-01 crash beat and input lock', () {
+    testWidgets('overlay waits for the crash beat, then ignores early taps',
+        (tester) async {
+      final ads = FakeAds(ready: true);
+      final c = makeController(ads: ads);
+      await pumpGame(tester, c);
+      await crashNow(tester);
+      expect(gameOf(tester).phase.value, RunPhase.crashed);
+
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('CONTINUE?'), findsNothing);
+      await tester.pump(const Duration(milliseconds: 150)); // 550 ms
+      expect(find.text('CONTINUE?'), findsOneWidget);
+
+      // 100 ms after the panel appears: taps on both buttons do nothing.
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(find.text('No thanks'), warnIfMissed: false);
+      await tester.tap(find.text('Watch ad to revive'), warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(find.text('CONTINUE?'), findsOneWidget);
+      expect(c.progress.runs, 0);
+      expect(ads.rewardedShown, 0);
+
+      // After the 400 ms lock the same tap works.
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.tap(find.text('No thanks'));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(c.progress.runs, 1);
+    });
+
+    testWidgets('results panel ignores a tap on PLAY AGAIN at first',
+        (tester) async {
+      final c = makeController(); // no revive possible: results after beat
+      await pumpGame(tester, c);
+      await crashNow(tester);
+      gameOf(tester).session!.reviveUsed = true;
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(find.text('PLAY AGAIN'), findsOneWidget);
+
+      await tester.tap(find.text('PLAY AGAIN'), warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(find.text('PLAY AGAIN'), findsOneWidget); // still on results
+      expect(gameOf(tester).phase.value, RunPhase.over);
     });
   });
 }
