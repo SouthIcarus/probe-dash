@@ -351,3 +351,25 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Files:** `lib/game/probe_game.dart`, `lib/ui/game_screen.dart`,
   `lib/app/game_controller.dart`, `test/game_screen_test.dart`
 - **Refs:** AJ_PROBE `ux-plan.md` PR 1 #11; spec GAME-4, GAME-6
+
+## #0019 — 2026-10-08 — CHANGE — QA failure-path tests for UX PR 1
+- **What:** Added `test/qa_failure_paths_test.dart` (14 tests): revive then
+  a second crash goes to results with no second offer and applies the run
+  once; the revive countdown stays paused while the ad is open; back while
+  the revive ad is open is ignored; back during the 500 ms crash beat saves
+  the run once and no revive offer appears afterwards; leaving by back
+  (before the first tap, and from results) restores edge-to-edge; taps on
+  PLAY AGAIN inside the 400 ms lock don't restart and a tap after it does;
+  the results upgrade shortcut shows when crystals equal the cost exactly
+  and hides one crystal short; haptics per event (shield = one medium,
+  near miss = light with max one per 300 ms, none on thrust or crystals)
+  and the off switch silencing crash, shield and near miss. Mutation
+  checks: 19 guards broken one at a time in `lib/`; before this change 4
+  survived (near-miss haptic throttle, shield haptic, countdown pause
+  during the ad, floor drawing); the new tests kill the first 3 (floor
+  drawing is visual: device checklist). No product code changed.
+- **Why:** QA verification of PR #3 (UX PR 1): these failure paths were
+  not covered, so the features could break without a red test.
+- **Agent:** qa-engineer
+- **Files:** `test/qa_failure_paths_test.dart` (new)
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #1–#6, #10; `ux-review.md` A-01, A-06, A-07, A-08, A-18, A-29; #0008–#0013, #0017
