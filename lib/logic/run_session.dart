@@ -55,11 +55,18 @@ class Gate {
 enum PickupKind { crystal, magnet }
 
 class Pickup {
-  Pickup(this.kind, this.x, this.y);
+  Pickup(this.kind, this.x, this.y)
+      : prevX = x,
+        prevY = y;
 
   final PickupKind kind;
   double x;
   double y;
+
+  /// Position before the latest physics step (magnet pull moves pickups),
+  /// for smooth rendering (FEEL-02).
+  double prevX;
+  double prevY;
   bool collected = false;
 }
 
@@ -100,6 +107,7 @@ class RunSession {
             Tuning.metersPerUnit;
     _nextGateX = _headStartUnits + probeX + worldWidth * 0.75;
     _lastGapCenter = Tuning.worldHeight / 2;
+    _syncPrevious();
   }
 
   final double worldWidth;
@@ -149,6 +157,37 @@ class RunSession {
   late double _lastGapCenter;
   double _nextMagnetMeters = Tuning.magnetPickupEveryMeters;
   double _accumulator = 0;
+
+  // State before the latest fixed step, for rendering between steps
+  // (FEEL-02). Never read by the physics.
+  double _prevScroll = 0;
+  double _prevProbeY = 0;
+
+  /// How far the clock is between the previous and the latest physics
+  /// step, 0..1. Outside `playing` the latest state is shown as is.
+  double get alpha {
+    if (phase != RunPhase.playing) return 1;
+    final a = _accumulator / Tuning.fixedStep;
+    return a < 0 ? 0 : (a > 1 ? 1 : a);
+  }
+
+  /// Scroll and probe height to draw this frame: the last two physics
+  /// states blended by [alpha], so motion is smooth at any refresh rate.
+  double get renderScroll => _lerp(_prevScroll, scroll, alpha);
+  double get renderProbeY => _lerp(_prevProbeY, probeY, alpha);
+  double renderPickupX(Pickup p) => _lerp(p.prevX, p.x, alpha);
+  double renderPickupY(Pickup p) => _lerp(p.prevY, p.y, alpha);
+
+  static double _lerp(double a, double b, double t) => a + (b - a) * t;
+
+  void _syncPrevious() {
+    _prevScroll = scroll;
+    _prevProbeY = probeY;
+    for (final p in pickups) {
+      p.prevX = p.x;
+      p.prevY = p.y;
+    }
+  }
 
   int _level(UpgradeType t) => _levels[t] ?? 0;
 
@@ -200,6 +239,7 @@ class RunSession {
   }
 
   void _step(double h) {
+    _syncPrevious();
     sinceTap += h;
     final wasHeadStart = inHeadStart;
     scroll += speed * h;
@@ -372,6 +412,7 @@ class RunSession {
     velocityY = Tuning.thrustVelocity / 2;
     invincibleSeconds = Tuning.reviveInvincibleSeconds;
     _accumulator = 0;
+    _syncPrevious(); // the probe jumped: don't streak from the crash spot
     phase = RunPhase.playing;
   }
 

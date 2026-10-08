@@ -273,3 +273,24 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Agent:** engineer
 - **Files:** `lib/game/probe_game.dart`, `test/game_screen_test.dart`
 - **Refs:** AJ_PROBE `ux-plan.md` PR 1 #7; `ux-review.md` A-04; spec §2, §8; #0013
+
+## #0015 — 2026-10-08 — CHANGE — Smooth rendering between physics steps
+- **What:** `RunSession` keeps the scroll, probe height and pickup
+  positions from before each fixed step and exposes
+  `alpha = accumulator / fixedStep` (clamped 0..1; 1 outside `playing`)
+  plus interpolated `renderScroll`, `renderProbeY`, `renderPickupX/Y`
+  (hand-written lerp, still no Flutter in `lib/logic`). The previous state
+  is reset to the current one in the constructor and in `revive()`, so the
+  probe never streaks from the crash spot. `ProbeGame` draws stars, gates,
+  pickups, the best marker, particles and the probe from the interpolated
+  values. Physics is unchanged: the existing determinism tests pass, a new
+  test runs whole vs. 1.5-step updates to the same state, and a seeded bot
+  run (4 seeds, shield/magnet/head start on) printed bit-identical final
+  states on `origin/main` and this branch.
+- **Why:** FEEL-02: with 120 Hz physics drawn at the screen's refresh rate,
+  the drawn position jumped by 0 or 2 steps on some frames (~2 visible
+  stutters per second in the tech lead's simulation).
+- **Agent:** engineer
+- **Files:** `lib/logic/run_session.dart`, `lib/game/probe_game.dart`,
+  `test/logic/run_session_test.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #8; spec GAME-1

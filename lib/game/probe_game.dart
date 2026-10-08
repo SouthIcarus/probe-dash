@@ -317,7 +317,7 @@ class ProbeGame extends FlameGame {
     final paint = Paint();
     final w = _worldWidth;
     for (final star in _stars) {
-      final x = (star.x * w - s.scroll * star.depth) % w;
+      final x = (star.x * w - s.renderScroll * star.depth) % w;
       paint.color = Color.fromRGBO(255, 255, 255, 0.25 + star.depth);
       canvas.drawCircle(Offset(x, star.y), 0.25 + star.depth * 0.5, paint);
     }
@@ -325,7 +325,7 @@ class ProbeGame extends FlameGame {
 
   void _drawBestMarker(Canvas canvas, RunSession s) {
     if (bestDistance <= 0) return;
-    final x = bestDistance / Tuning.metersPerUnit - s.scroll + s.probeX;
+    final x = bestDistance / Tuning.metersPerUnit - s.renderScroll + s.probeX;
     if (x < -1 || x > _worldWidth + 1) return;
     canvas.drawLine(
       Offset(x, 0),
@@ -339,7 +339,7 @@ class ProbeGame extends FlameGame {
   /// "BEST" label at the top of the marker line, drawn in screen space.
   void _drawBestLabel(Canvas canvas, RunSession s) {
     if (bestDistance <= 0) return;
-    final x = bestDistance / Tuning.metersPerUnit - s.scroll + s.probeX;
+    final x = bestDistance / Tuning.metersPerUnit - s.renderScroll + s.probeX;
     if (x < -10 || x > _worldWidth + 10) return;
     _text(canvas, 'BEST', Offset(x * _scale, viewPadding.top + 4),
         size.y * 0.022, gold,
@@ -360,7 +360,7 @@ class ProbeGame extends FlameGame {
   }
 
   void _drawGate(Canvas canvas, RunSession s, Gate g) {
-    final x = g.x - s.scroll;
+    final x = g.x - s.renderScroll;
     final rock = Paint()..color = const Color(0xFF5D5A6E);
     final edge = Paint()..color = const Color(0xFF8C87A3);
     const w = Tuning.gateWidth;
@@ -377,7 +377,7 @@ class ProbeGame extends FlameGame {
   }
 
   void _drawPickup(Canvas canvas, RunSession s, Pickup p) {
-    final c = Offset(p.x - s.scroll, p.y);
+    final c = Offset(s.renderPickupX(p) - s.renderScroll, s.renderPickupY(p));
     if (p.kind == PickupKind.crystal) {
       const r = Tuning.crystalRadius;
       final path = Path()
@@ -401,7 +401,7 @@ class ProbeGame extends FlameGame {
   }
 
   void _drawProbe(Canvas canvas, RunSession s) {
-    final c = Offset(s.probeX, s.probeY);
+    final c = Offset(s.probeX, s.renderProbeY);
     const r = Tuning.probeRadius;
 
     // Blink while invincible (revive / shield grace).
@@ -455,7 +455,7 @@ class ProbeGame extends FlameGame {
     for (final p in _particles) {
       final fade = 1 - p.age / p.life;
       paint.color = p.color.withValues(alpha: p.color.a * fade);
-      final c = Offset(p.x - s.scroll, p.y);
+      final c = Offset(p.x - s.renderScroll, p.y);
       if (p.triangle) {
         final r = p.size * 0.58; // circumradius of a triangle with side p.size
         final path = Path();

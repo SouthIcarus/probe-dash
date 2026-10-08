@@ -320,4 +320,56 @@ void main() {
       expect(count(run(none, 2), RunEvent.headStartEnd), 0);
     });
   });
+
+  group('FEEL-02 smooth rendering', () {
+    test('half way between steps, render state is half way too', () {
+      final s = session()..tap();
+      final y0 = s.probeY;
+      s.update(1.5 * Tuning.fixedStep); // one step + half a step left over
+      expect(s.alpha, closeTo(0.5, 1e-6));
+      expect(s.renderScroll, greaterThan(0));
+      expect(s.renderScroll, lessThan(s.scroll));
+      expect(s.renderScroll, closeTo(s.scroll / 2, 1e-9));
+      expect(s.renderProbeY, closeTo((y0 + s.probeY) / 2, 1e-6));
+    });
+
+    test('interpolation never changes the physics', () {
+      final a = session(seed: 9)..tap();
+      final b = session(seed: 9)..tap();
+      for (var i = 0; i < 240; i++) {
+        a.update(Tuning.fixedStep); // whole steps only
+      }
+      for (var i = 0; i < 160; i++) {
+        b.update(1.5 * Tuning.fixedStep); // always half a step in between
+      }
+      expect(b.scroll, closeTo(a.scroll, 1e-9));
+      expect(b.probeY, closeTo(a.probeY, 1e-9));
+    });
+
+    test('revive resets the previous state, so nothing streaks', () {
+      final s = session()..tap();
+      flyFor(s, 5, bot: false);
+      expect(s.phase, RunPhase.crashed);
+      s.revive();
+      expect(s.alpha, 0);
+      expect(s.renderProbeY, s.probeY);
+      expect(s.renderScroll, s.scroll);
+    });
+
+    test('a new run renders exactly where it starts', () {
+      final s = session();
+      expect(s.renderScroll, 0);
+      expect(s.renderProbeY, s.probeY);
+    });
+
+    test('magnet-pulled pickups interpolate too', () {
+      final s = session()..tap();
+      s.magnetSeconds = 5;
+      final c = Pickup(PickupKind.crystal, s.probeWorldX + 15, s.probeY);
+      s.pickups.add(c);
+      s.update(1.5 * Tuning.fixedStep);
+      expect(s.renderPickupX(c), closeTo((c.prevX + c.x) / 2, 1e-9));
+      expect(c.prevX, greaterThan(c.x)); // pulled toward the probe
+    });
+  });
 }
