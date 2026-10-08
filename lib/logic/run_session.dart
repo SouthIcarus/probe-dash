@@ -311,12 +311,19 @@ class RunSession {
     phase = RunPhase.playing;
   }
 
+  RunResult? _result;
+
   /// End the run (player declined or couldn't revive).
+  ///
+  /// A run has exactly one result (A-20): repeated calls return the same
+  /// [RunResult] without recalculating, so a double tap can't count it twice.
   RunResult finish() {
+    final done = _result;
+    if (done != null) return done;
     phase = RunPhase.over;
     final multiplier =
         Upgrades.crystalMultiplier(_level(UpgradeType.crystalValue));
-    return RunResult(
+    return _result = RunResult(
       distanceMeters: distanceMeters.floor(),
       rawCrystals: rawCrystals,
       earnedCrystals: (rawCrystals * multiplier).floor(),
@@ -324,6 +331,9 @@ class RunSession {
       revived: reviveUsed,
     );
   }
+
+  /// True once [finish] has produced this run's result.
+  bool get finished => _result != null;
 
   static bool _circleHitsRect(double cx, double cy, double r, double rx,
       double ry, double rw, double rh) {

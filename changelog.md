@@ -125,3 +125,25 @@ new entry that references the old one instead. Newest entries at the bottom.
   push and PR, so this class of bug can't ship again.
 - **Files:** `android/app/proguard-rules.pro`, `android/app/build.gradle.kts`
 - **Refs:** #0005, #0006
+
+## #0008 — 2026-10-08 — CHANGE — One run, one result; one tap, one upgrade level
+- **What:** (1) `RunSession.finish()` now returns the same `RunResult` on
+  repeated calls without recalculating. (2) `GameScreen._finish()` has a
+  guard flag, so a run is applied to progress exactly once even when a
+  double tap on "No thanks" or a tap as the revive countdown hits 0 reach
+  it twice. (3) Upgrades: `GameController.buyUpgrade` ignores a buy while
+  the previous one is still saving, and each tile ignores taps for 400 ms
+  after a buy (A-22), so a fast double tap buys one level, not two.
+  New tests: `test/game_screen_test.dart` (double tap, countdown race),
+  `test/upgrades_screen_test.dart` (taps 100 ms apart, in-flight buy),
+  `finish()` idempotence in `run_session_test.dart`; shared fakes in
+  `test/support/fakes.dart`.
+- **Why:** UX review UX-21/A-20 and UX-23/A-22: both paths corrupted the
+  economy (crystals and `runs` counted twice, which also skews interstitial
+  pacing AD-1). UX plan PR 1 item 1.
+- **Agent:** engineer
+- **Files:** `lib/logic/run_session.dart`, `lib/ui/game_screen.dart`,
+  `lib/app/game_controller.dart`, `lib/ui/upgrades_screen.dart`,
+  `test/game_screen_test.dart`, `test/upgrades_screen_test.dart`,
+  `test/support/fakes.dart`, `test/logic/run_session_test.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #1; `ux-review.md` A-20, A-22; spec US-3, GAME-6, AD-1

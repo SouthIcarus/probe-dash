@@ -208,4 +208,16 @@ void main() {
     expect(r.earnedCrystals, 15);
     expect(s.phase, RunPhase.over);
   });
+
+  test('A-20: finish twice returns the same result, not a recount', () {
+    final s = session()..tap();
+    s.rawCrystals = 4;
+    final a = s.finish();
+    s.rawCrystals = 99; // must not leak into the already-finished run
+    final b = s.finish();
+    expect(identical(a, b), isTrue);
+    expect(b.rawCrystals, 4);
+    expect(s.finished, isTrue);
+    expect(s.phase, RunPhase.over);
+  });
 }

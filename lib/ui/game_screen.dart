@@ -26,6 +26,10 @@ class _GameScreenState extends State<GameScreen> {
   bool _doubled = false;
   bool _busy = false;
 
+  /// Set when the current run has been finished and applied; a run is
+  /// applied to progress at most once (A-20 / UX-21).
+  bool _finished = false;
+
   GameController get c => widget.controller;
 
   @override
@@ -57,6 +61,10 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Future<void> _finish() async {
+    // Two paths can land here for one run (double tap on "No thanks", or the
+    // countdown ending as the player taps). Only the first one counts.
+    if (_finished) return;
+    _finished = true;
     final result = _game.finish();
     if (result == null) return;
     final best = await c.completeRun(result);
@@ -106,6 +114,7 @@ class _GameScreenState extends State<GameScreen> {
     setState(() {
       _busy = false;
       _result = null;
+      _finished = false;
       _game = _makeGame(); // picks up any new upgrade levels
     });
   }

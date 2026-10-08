@@ -38,11 +38,22 @@ class GameController extends ChangeNotifier {
     return true;
   }
 
+  bool _buying = false;
+
+  /// Buys one level (US-3). A buy that arrives while the previous one is
+  /// still in flight (fast double tap) is ignored, so one tap = one level
+  /// (A-22).
   Future<bool> buyUpgrade(UpgradeType type) async {
-    if (!progress.buyUpgrade(type)) return false;
-    notifyListeners();
-    await store.save(progress);
-    return true;
+    if (_buying) return false;
+    _buying = true;
+    try {
+      if (!progress.buyUpgrade(type)) return false;
+      notifyListeners();
+      await store.save(progress);
+      return true;
+    } finally {
+      _buying = false;
+    }
   }
 
   /// Called when leaving the results screen; shows an interstitial only
