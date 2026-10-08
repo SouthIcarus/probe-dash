@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../app/game_controller.dart';
 import '../game/probe_game.dart';
 import '../logic/run_session.dart';
+import '../logic/upgrades.dart';
 import 'upgrades_screen.dart';
 
 /// One play session: the game plus revive and results overlays.
@@ -213,6 +214,8 @@ class _GameScreenState extends State<GameScreen> {
                 newBest: _newBest,
                 best: c.progress.bestDistance,
                 totalCrystals: c.progress.crystals,
+                upgradeOffer: Upgrades.cheapestAffordable(
+                    c.progress.upgrades, c.progress.crystals),
                 adReady: c.ads.rewardedReadyListenable,
                 doubled: _doubled,
                 busy: _busy,
@@ -346,6 +349,7 @@ class _ResultsOverlay extends StatelessWidget {
     required this.newBest,
     required this.best,
     required this.totalCrystals,
+    required this.upgradeOffer,
     required this.adReady,
     required this.doubled,
     required this.busy,
@@ -359,6 +363,7 @@ class _ResultsOverlay extends StatelessWidget {
   final bool newBest;
   final int best;
   final int totalCrystals;
+  final UpgradeOffer? upgradeOffer;
   final ValueListenable<bool> adReady;
   final bool doubled;
   final bool busy;
@@ -404,6 +409,15 @@ class _ResultsOverlay extends StatelessWidget {
         style: FilledButton.styleFrom(minimumSize: const Size(200, 52)),
         child: const Text('PLAY AGAIN', style: TextStyle(fontSize: 18)),
       ),
+      if (upgradeOffer case final offer?) ...[
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: busy ? null : onUpgrades,
+          icon: const Icon(Icons.upgrade),
+          label: Text('Upgrade ready: ${offer.info.name} '
+              'Lv${offer.nextLevel} – ${offer.cost} ◆'),
+        ),
+      ],
       Row(mainAxisSize: MainAxisSize.min, children: [
         TextButton(onPressed: busy ? null : onUpgrades, child: const Text('Upgrades')),
         TextButton(onPressed: busy ? null : onHome, child: const Text('Home')),

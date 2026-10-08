@@ -309,3 +309,21 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Agent:** engineer
 - **Files:** `lib/game/probe_game.dart`, `test/game_screen_test.dart`
 - **Refs:** AJ_PROBE `ux-plan.md` PR 1 #9, D2; `ux-review.md` A-11
+
+## #0017 — 2026-10-08 — CHANGE — Results screen shows an "Upgrade ready" shortcut
+- **What:** When the player can afford an upgrade after a run, the results
+  panel shows an outlined button under PLAY AGAIN, e.g. "Upgrade ready:
+  Crystal Value Lv1 – 100 ◆", naming the cheapest affordable next level
+  (ties follow the spec §4 table order); it opens the Upgrades screen.
+  Nothing shows when no upgrade is affordable. New pure helper
+  `Upgrades.cheapestAffordable(levels, crystals)` with unit tests; widget
+  tests for the shown/hidden cases and that it opens Upgrades. Placed under
+  PLAY AGAIN as in the spec §8 wireframe. The A-18 "Next upgrade: … to go"
+  text for the not-affordable case was not built (brief: hide it).
+- **Why:** Spec §8 ResultsScreen wireframe lists "UpgradesShortcut"; it was
+  missing (A-18 / UX-19), weakening the "one more upgrade" hook at the
+  moment the player has crystals.
+- **Agent:** engineer
+- **Files:** `lib/logic/upgrades.dart`, `lib/ui/game_screen.dart`,
+  `test/logic/upgrades_test.dart` (new), `test/game_screen_test.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #10; `ux-review.md` A-18; spec §8, US-3

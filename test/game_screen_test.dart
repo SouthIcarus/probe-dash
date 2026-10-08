@@ -6,6 +6,7 @@ import 'package:probe_dash/game/probe_game.dart';
 import 'package:probe_dash/logic/run_session.dart';
 import 'package:probe_dash/services/ad_service.dart';
 import 'package:probe_dash/ui/game_screen.dart';
+import 'package:probe_dash/ui/upgrades_screen.dart';
 
 import 'support/fakes.dart';
 
@@ -358,6 +359,33 @@ void main() {
       expect(ProbeGame.probeOpacity(0.05, invincible: true), 0.35);
       expect(ProbeGame.probeOpacity(0.15, invincible: true), 1.0);
       expect(ProbeGame.probeOpacity(0.05, invincible: false), 1.0);
+    });
+  });
+
+  group('A-18 upgrade shortcut on results', () {
+    Future<void> toResults(WidgetTester tester, c) async {
+      await pumpGame(tester, c);
+      gameOf(tester).session!.reviveUsed = true;
+      await crashNow(tester);
+      await waitForOverlay(tester);
+      expect(find.text('PLAY AGAIN'), findsOneWidget);
+    }
+
+    testWidgets('affordable upgrade shows and opens Upgrades',
+        (tester) async {
+      final c = makeController(crystals: 120);
+      await toResults(tester, c);
+      final shortcut = find.text('Upgrade ready: Crystal Value Lv1 – 100 ◆');
+      expect(shortcut, findsOneWidget);
+      await tester.tap(shortcut);
+      await settle(tester);
+      expect(find.byType(UpgradesScreen), findsOneWidget);
+    });
+
+    testWidgets('nothing affordable: no shortcut', (tester) async {
+      final c = makeController(crystals: 0);
+      await toResults(tester, c);
+      expect(find.textContaining('Upgrade ready'), findsNothing);
     });
   });
 }

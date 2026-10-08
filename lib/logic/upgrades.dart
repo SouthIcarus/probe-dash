@@ -14,6 +14,15 @@ class UpgradeInfo {
   final String description;
 }
 
+/// One upgrade level the player could buy now.
+class UpgradeOffer {
+  const UpgradeOffer(this.info, this.nextLevel, this.cost);
+
+  final UpgradeInfo info;
+  final int nextLevel;
+  final int cost;
+}
+
 class Upgrades {
   Upgrades._();
 
@@ -38,6 +47,23 @@ class Upgrades {
   static int? nextCost(UpgradeType type, int currentLevel) {
     if (currentLevel >= maxLevel) return null;
     return (info(type).baseCost * math.pow(costGrowth, currentLevel)).round();
+  }
+
+  /// The cheapest next level the player can afford with [crystals], or null
+  /// if none is affordable (results "UpgradesShortcut", spec §8, A-18).
+  /// Ties go to the order of the spec's upgrades table ([all]).
+  static UpgradeOffer? cheapestAffordable(
+      Map<UpgradeType, int> levels, int crystals) {
+    UpgradeOffer? best;
+    for (final u in all) {
+      final level = levels[u.type] ?? 0;
+      final cost = nextCost(u.type, level);
+      if (cost == null || cost > crystals) continue;
+      if (best == null || cost < best.cost) {
+        best = UpgradeOffer(u, level + 1, cost);
+      }
+    }
+    return best;
   }
 
   static double crystalMultiplier(int level) => 1 + 0.1 * level;
