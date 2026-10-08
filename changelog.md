@@ -205,3 +205,23 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Files:** `lib/services/ad_service.dart`, `lib/ui/game_screen.dart`,
   `test/game_screen_test.dart`, `test/support/fakes.dart`
 - **Refs:** AJ_PROBE `ux-plan.md` PR 1 #4; `ux-review.md` A-08, A-09, D-UX-1; spec §7, AD-4, US-1
+
+## #0012 — 2026-10-08 — CHANGE — Game screen fits the phone: immersive mode, inset HUD, visible deadly floor
+- **What:** (1) Entering `GameScreen` sets `SystemUiMode.immersiveSticky`;
+  leaving it restores `SystemUiMode.edgeToEdge`. (2) The screen passes
+  `MediaQuery.viewPaddingOf(context)` to `ProbeGame`; the HUD top is
+  `max(height × 0.05, inset top + 8 dp)` (exposed as `ProbeGame.hudTop`,
+  pure helper `hudTopFor`), and the HUD also clears a left inset. (3) The
+  revive/results panels sit inside `SafeArea`. (4) The deadly floor is
+  drawn as a red band (`#FF5252`, 70% alpha) from y = 98.5 u to the bottom
+  with a solid 0.4 u top line; the ceiling stays safe and undrawn. The
+  A-05 "pulse during the first 3 runs" was not built (not in the brief).
+  Tests: HUD top ≥ 48 with a 48 dp inset; 5% without; immersive on enter
+  and edge-to-edge on leave via a mocked platform channel.
+- **Why:** FEEL-11 / UX-06 (A-06): the status bar drew over the HUD and the
+  gesture handle over the floor. FEEL-09 / UX-05 (A-05): the bottom edge
+  kills but wasn't drawn, so deaths looked like they happened "on nothing".
+- **Agent:** engineer
+- **Files:** `lib/game/probe_game.dart`, `lib/ui/game_screen.dart`,
+  `test/game_screen_test.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #5; `ux-review.md` A-05, A-06

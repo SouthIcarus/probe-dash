@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../app/game_controller.dart';
 import '../game/probe_game.dart';
@@ -45,6 +46,10 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void initState() {
     super.initState();
+    // Full screen while playing: no status bar over the HUD and no gesture
+    // handle over the deadly floor (FEEL-11, A-06). Swiping from an edge
+    // shows the bars briefly.
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _game = _makeGame();
   }
 
@@ -152,6 +157,7 @@ class _GameScreenState extends State<GameScreen> {
 
   @override
   void dispose() {
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _beatTimer?.cancel();
     _game.phase.removeListener(_onPhase);
     super.dispose();
@@ -177,6 +183,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _buildBody(RunPhase phase) {
+    _game.viewPadding = MediaQuery.viewPaddingOf(context);
     return Scaffold(
       backgroundColor: const Color(0xFF070B1A),
       body: Stack(
@@ -415,14 +422,16 @@ class _Panel extends StatelessWidget {
     return Container(
       color: const Color(0xAA000000),
       alignment: Alignment.center,
-      child: Container(
-        margin: const EdgeInsets.all(24),
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: const Color(0xFF151B33),
-          borderRadius: BorderRadius.circular(20),
+      child: SafeArea(
+        child: Container(
+          margin: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFF151B33),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: children),
         ),
-        child: Column(mainAxisSize: MainAxisSize.min, children: children),
       ),
     );
   }

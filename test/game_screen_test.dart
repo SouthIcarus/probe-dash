@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:probe_dash/game/probe_game.dart';
 import 'package:probe_dash/logic/run_session.dart';
 import 'package:probe_dash/services/ad_service.dart';
 import 'package:probe_dash/ui/game_screen.dart';
@@ -223,6 +225,55 @@ void main() {
       ads.ready = true;
       await tester.pump();
       expect(find.text('Watch ad to revive'), findsOneWidget);
+    });
+  });
+
+  group('FEEL-11 / A-06 screen fit', () {
+    testWidgets('HUD starts below a 48 dp top inset', (tester) async {
+      final c = makeController();
+      await tester.pumpWidget(MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+              viewPadding: const EdgeInsets.only(top: 48),
+              padding: const EdgeInsets.only(top: 48)),
+          child: child!,
+        ),
+        home: GameScreen(controller: c),
+      ));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(gameOf(tester).hudTop, greaterThanOrEqualTo(48));
+    });
+
+    testWidgets('HUD without insets keeps its 5% top margin', (tester) async {
+      final c = makeController();
+      await pumpGame(tester, c);
+      final g = gameOf(tester);
+      expect(g.hudTop, closeTo(g.size.y * 0.05, 1e-9));
+    });
+
+    test('hudTopFor picks the larger of 5% height and inset + 8', () {
+      expect(ProbeGame.hudTopFor(0, 800), 40);
+      expect(ProbeGame.hudTopFor(48, 800), 56);
+    });
+
+    testWidgets('immersive mode on enter, edge-to-edge on leave',
+        (tester) async {
+      final modes = <Object?>[];
+      tester.binding.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'SystemChrome.setEnabledSystemUIMode') {
+          modes.add(call.arguments);
+        }
+        return null;
+      });
+      addTearDown(() => tester.binding.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, null));
+
+      final c = makeController();
+      await pumpGame(tester, c);
+      expect(modes, ['SystemUiMode.immersiveSticky']);
+      await tester.pumpWidget(const SizedBox());
+      expect(modes, ['SystemUiMode.immersiveSticky', 'SystemUiMode.edgeToEdge']);
     });
   });
 }

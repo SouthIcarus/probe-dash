@@ -21,6 +21,25 @@ class ProbeGame extends FlameGame {
   /// UI listens to this to show the revive and results overlays.
   final ValueNotifier<RunPhase> phase = ValueNotifier(RunPhase.ready);
 
+  /// System insets (status bar, camera cutout) in logical pixels; the
+  /// screen passes `MediaQuery.viewPaddingOf` so the HUD stays clear of
+  /// them (FEEL-11, A-06).
+  EdgeInsets viewPadding = EdgeInsets.zero;
+
+  /// Top of the HUD in logical pixels.
+  double get hudTop => hudTopFor(viewPadding.top, size.y);
+
+  /// A-06: `max(height × 0.05, inset + 8 dp)`.
+  static double hudTopFor(double insetTop, double height) =>
+      math.max(height * 0.05, insetTop + 8);
+
+  /// Deadly floor band (FEEL-09, A-05): from y = 98.5 u to the bottom, red at
+  /// 70% with a solid 0.4 u top line. The ceiling is safe and stays undrawn.
+  static const double floorBandTop = 98.5;
+  static const double floorLineWidth = 0.4;
+  static final Paint _floorBand = Paint()..color = const Color(0xB3FF5252);
+  static final Paint _floorLine = Paint()..color = const Color(0xFFFF5252);
+
   RunSession? _session;
   RunSession? get session => _session;
 
@@ -179,6 +198,7 @@ class ProbeGame extends FlameGame {
     for (final p in s.pickups) {
       if (!p.collected) _drawPickup(canvas, s, p);
     }
+    _drawFloor(canvas);
     _drawProbe(canvas, s);
     _drawParticles(canvas, s);
     canvas.restore();
@@ -298,6 +318,16 @@ class ProbeGame extends FlameGame {
     }
   }
 
+  void _drawFloor(Canvas canvas) {
+    final w = _worldWidth + 4; // covers the shake offset at both sides
+    canvas.drawRect(
+        Rect.fromLTWH(
+            -2, floorBandTop, w, Tuning.worldHeight + 2 - floorBandTop),
+        _floorBand);
+    canvas.drawRect(
+        Rect.fromLTWH(-2, floorBandTop, w, floorLineWidth), _floorLine);
+  }
+
   void _drawParticles(Canvas canvas, RunSession s) {
     final paint = Paint();
     for (final p in _particles) {
@@ -326,9 +356,11 @@ class ProbeGame extends FlameGame {
 
   void _drawHud(Canvas canvas, RunSession s) {
     final pad = size.y * 0.02;
-    _text(canvas, '${s.distanceMeters.floor()} m', Offset(pad, pad * 2.5),
+    final left = pad + viewPadding.left;
+    final top = hudTop;
+    _text(canvas, '${s.distanceMeters.floor()} m', Offset(left, top),
         size.y * 0.04, const Color(0xFFFFFFFF));
-    _text(canvas, '◆ ${s.rawCrystals}', Offset(pad, pad * 2.5 + size.y * 0.05),
+    _text(canvas, '◆ ${s.rawCrystals}', Offset(left, top + size.y * 0.05),
         size.y * 0.03, const Color(0xFF4DD0E1));
     if (s.phase == RunPhase.ready) {
       _text(canvas, 'TAP TO FLY', Offset(size.x / 2, size.y * 0.7),
