@@ -294,3 +294,18 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Files:** `lib/logic/run_session.dart`, `lib/game/probe_game.dart`,
   `test/logic/run_session_test.dart`
 - **Refs:** AJ_PROBE `ux-plan.md` PR 1 #8; spec GAME-1
+
+## #0016 — 2026-10-08 — CHANGE — Probe stays visible while invincible; square rock corners
+- **What:** (1) During invincibility (revive / shield grace) the probe's
+  "off" blink phase draws it at 35% opacity instead of not drawing it
+  (same 0.2 s blink cycle; pure helper `ProbeGame.probeOpacity`, unit
+  tested to never return 0). (2) Rock gates are drawn with square corners
+  (were 3 u rounded), so the art matches the square hitbox. No hit radius,
+  look-ahead, or `Tuning` value changed.
+- **Why:** FEEL-08 / UX-12: the probe vanished for half of each blink,
+  making steering through the next gap guesswork. FEEL-05 (art only): the
+  rounded art hid up to ~10 dp of rock that still killed ("invisible rock"
+  deaths). The hitbox side of FEEL-05 is for the later tuning PR (D2).
+- **Agent:** engineer
+- **Files:** `lib/game/probe_game.dart`, `test/game_screen_test.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #9, D2; `ux-review.md` A-11

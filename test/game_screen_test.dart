@@ -348,4 +348,16 @@ void main() {
       expect(g.newBestBannerAge, isNull); // gone after ~1.25 s
     });
   });
+
+  group('FEEL-08 probe visible while invincible', () {
+    test('blink never hides the probe', () {
+      for (var t = 0.0; t < 2; t += 0.01) {
+        final o = ProbeGame.probeOpacity(t, invincible: true);
+        expect(o, greaterThanOrEqualTo(ProbeGame.blinkOffOpacity));
+      }
+      expect(ProbeGame.probeOpacity(0.05, invincible: true), 0.35);
+      expect(ProbeGame.probeOpacity(0.15, invincible: true), 1.0);
+      expect(ProbeGame.probeOpacity(0.05, invincible: false), 1.0);
+    });
+  });
 }

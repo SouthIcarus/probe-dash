@@ -98,6 +98,13 @@ class ProbeGame extends FlameGame {
     return math.max(0, 1 - (age - fadeStart) / bannerFade);
   }
 
+  /// Probe opacity while blinking (FEEL-08, A-11): the "off" half of each
+  /// 0.2 s blink draws the probe at 35% instead of hiding it.
+  static const double blinkOffOpacity = 0.35;
+
+  static double probeOpacity(double time, {required bool invincible}) =>
+      invincible && (time * 10).floor().isEven ? blinkOffOpacity : 1.0;
+
   /// The HUD's best line: "BEST 1287 m" while chasing, "NEW BEST" once
   /// passed, nothing before the player has a best.
   static String? bestLine(int best, {required bool passed}) {
@@ -364,13 +371,12 @@ class ProbeGame extends FlameGame {
     final rock = Paint()..color = const Color(0xFF5D5A6E);
     final edge = Paint()..color = const Color(0xFF8C87A3);
     const w = Tuning.gateWidth;
-    final top = RRect.fromRectAndRadius(
-        Rect.fromLTWH(x, -5, w, g.gapTop + 5), const Radius.circular(3));
-    final bottom = RRect.fromRectAndRadius(
+    // Square corners: the art matches the square hitbox exactly, so there
+    // are no "invisible rock" corners (FEEL-05, art only).
+    canvas.drawRect(Rect.fromLTWH(x, -5, w, g.gapTop + 5), rock);
+    canvas.drawRect(
         Rect.fromLTWH(x, g.gapBottom, w, Tuning.worldHeight - g.gapBottom + 5),
-        const Radius.circular(3));
-    canvas.drawRRect(top, rock);
-    canvas.drawRRect(bottom, rock);
+        rock);
     // Lit rims on the gap edges so the opening reads instantly.
     canvas.drawRect(Rect.fromLTWH(x, g.gapTop - 1.2, w, 1.2), edge);
     canvas.drawRect(Rect.fromLTWH(x, g.gapBottom, w, 1.2), edge);
@@ -404,8 +410,10 @@ class ProbeGame extends FlameGame {
     final c = Offset(s.probeX, s.renderProbeY);
     const r = Tuning.probeRadius;
 
-    // Blink while invincible (revive / shield grace).
-    if (s.invincibleSeconds > 0 && (_time * 10).floor().isEven) return;
+    // Blink while invincible (revive / shield grace), but stay visible.
+    final o = probeOpacity(_time, invincible: s.invincibleSeconds > 0);
+    Color fade(Color color) =>
+        o == 1 ? color : color.withValues(alpha: color.a * o);
 
     if (s.sinceTap < 0.15 || s.inHeadStart) {
       final flame = Path()
@@ -413,12 +421,12 @@ class ProbeGame extends FlameGame {
         ..lineTo(c.dx - r * (2.2 + math.Random().nextDouble()), c.dy)
         ..lineTo(c.dx - r * 0.9, c.dy + r * 0.5)
         ..close();
-      canvas.drawPath(flame, Paint()..color = const Color(0xFFFF9100));
+      canvas.drawPath(flame, Paint()..color = fade(const Color(0xFFFF9100)));
     }
 
-    canvas.drawCircle(c, r, Paint()..color = const Color(0xFFE3F2FD));
+    canvas.drawCircle(c, r, Paint()..color = fade(const Color(0xFFE3F2FD)));
     canvas.drawCircle(c.translate(r * 0.3, -r * 0.2), r * 0.45,
-        Paint()..color = const Color(0xFF1E88E5));
+        Paint()..color = fade(const Color(0xFF1E88E5)));
 
     if (s.shieldHitsLeft > 0) {
       canvas.drawCircle(
@@ -427,7 +435,7 @@ class ProbeGame extends FlameGame {
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 0.6
-            ..color = const Color(0xAA64FFDA));
+            ..color = fade(const Color(0xAA64FFDA)));
     }
     if (s.magnetSeconds > 0) {
       canvas.drawCircle(
