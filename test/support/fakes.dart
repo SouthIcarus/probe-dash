@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flame/game.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:probe_dash/app/game_controller.dart';
 import 'package:probe_dash/game/probe_game.dart';
@@ -13,15 +14,19 @@ import 'package:probe_dash/services/save_store.dart';
 /// An [AdService] that never touches the ads plugin. Rewarded ads are
 /// "ready" when [ready] is true and always complete with [watchResult].
 class FakeAds extends AdService {
-  FakeAds({this.ready = true, this.watchResult = false})
-      : super(enabled: false);
+  FakeAds({bool ready = true, this.watchResult = false})
+      : _ready = ValueNotifier(ready),
+        super(enabled: false);
 
-  bool ready;
+  final ValueNotifier<bool> _ready;
   bool watchResult;
   int rewardedShown = 0;
 
+  bool get ready => _ready.value;
+  set ready(bool v) => _ready.value = v; // like an ad finishing loading
+
   @override
-  bool get rewardedReady => ready;
+  ValueListenable<bool> get rewardedReadyListenable => _ready;
 
   @override
   Future<bool> showRewarded() async {

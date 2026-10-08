@@ -185,3 +185,23 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Files:** `lib/game/probe_game.dart`, `lib/ui/game_screen.dart`,
   `test/game_screen_test.dart`, `test/support/fakes.dart`
 - **Refs:** AJ_PROBE `ux-plan.md` PR 1 #3; `ux-review.md` A-01; spec AD-3, §7
+
+## #0011 — 2026-10-08 — CHANGE — No ad loaded: skip the revive offer; ad buttons update live
+- **What:** (1) After the crash beat, the revive offer shows only if a
+  revive is unused **and** a rewarded ad is loaded; otherwise the game goes
+  straight to results. (2) `AdService` exposes `rewardedReadyListenable`
+  (`ValueListenable<bool>`), updated whenever a rewarded ad loads, is
+  shown, or fails. The revive button and the results "2× crystals" button
+  rebuild from it, so they switch from "No ad available" to active as soon
+  as an ad finishes loading. AD-4's "No ad available" fallback stays on the
+  2× button. Tests run with ads disabled and with a fake `AdService` that
+  flips readiness.
+- **Why:** A-08 / UX-09: with no ad, players waited 5 s in front of a
+  disabled button; spec §7 already says "Crashed --> Results: No revive
+  available". A-09 / UX-10: the buttons read the ad state once and stayed
+  stale. The UX review lists A-08 as needing owner OK (D-UX-1); the UX
+  plan puts it in PR 1 as within spec §7, so it is built as briefed.
+- **Agent:** engineer
+- **Files:** `lib/services/ad_service.dart`, `lib/ui/game_screen.dart`,
+  `test/game_screen_test.dart`, `test/support/fakes.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #4; `ux-review.md` A-08, A-09, D-UX-1; spec §7, AD-4, US-1

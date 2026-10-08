@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:probe_dash/logic/run_session.dart';
+import 'package:probe_dash/services/ad_service.dart';
 import 'package:probe_dash/ui/game_screen.dart';
 
 import 'support/fakes.dart';
@@ -165,6 +166,63 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
       expect(find.text('PLAY AGAIN'), findsOneWidget); // still on results
       expect(gameOf(tester).phase.value, RunPhase.over);
+    });
+  });
+
+  group('A-08 / A-09 no-ad path and live ad state', () {
+    testWidgets('ads disabled: crash goes straight to results, no offer',
+        (tester) async {
+      final c = makeController(ads: AdService(enabled: false));
+      await pumpGame(tester, c);
+      gameOf(tester).session!.rawCrystals = 2;
+      await crashNow(tester);
+      expect(gameOf(tester).session!.canRevive, isTrue); // revive unused
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('PLAY AGAIN'), findsNothing); // still in the beat
+      await waitForOverlay(tester);
+      expect(find.text('CONTINUE?'), findsNothing);
+      expect(find.text('PLAY AGAIN'), findsOneWidget);
+      expect(find.text('No ad available'), findsOneWidget); // AD-4 fallback
+      expect(c.progress.runs, 1);
+    });
+
+    testWidgets('2× button switches on when an ad finishes loading',
+        (tester) async {
+      final ads = FakeAds(ready: true);
+      final c = makeController(ads: ads);
+      await pumpGame(tester, c);
+      gameOf(tester).session!
+        ..rawCrystals = 4
+        ..reviveUsed = true; // no revive: results right after the beat
+      await crashNow(tester);
+      ads.ready = false;
+      await waitForOverlay(tester);
+      expect(find.text('No ad available'), findsOneWidget);
+
+      ads.ready = true;
+      await tester.pump();
+      expect(find.text('No ad available'), findsNothing);
+      final button = find.ancestor(
+          of: find.text('Watch ad: 2× crystals'),
+          matching: find.byWidgetPredicate((w) => w is ButtonStyleButton));
+      expect(tester.widget<ButtonStyleButton>(button).enabled, isTrue);
+    });
+
+    testWidgets('revive button follows the ad state while offered',
+        (tester) async {
+      final ads = FakeAds(ready: true);
+      final c = makeController(ads: ads);
+      await pumpGame(tester, c);
+      await crashNow(tester);
+      await waitForOverlay(tester);
+      expect(find.text('Watch ad to revive'), findsOneWidget);
+
+      ads.ready = false;
+      await tester.pump();
+      expect(find.text('No ad available'), findsOneWidget);
+      ads.ready = true;
+      await tester.pump();
+      expect(find.text('Watch ad to revive'), findsOneWidget);
     });
   });
 }

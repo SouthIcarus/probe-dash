@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flame/game.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../app/game_controller.dart';
@@ -70,8 +71,10 @@ class _GameScreenState extends State<GameScreen> {
     _beatTimer = null;
     if (!mounted || _finished) return;
     final s = _game.session;
-    // No revive left: go straight to results.
-    if (s == null || !s.canRevive) {
+    // No revive available (already used, or no rewarded ad loaded): go
+    // straight to results (spec §7 "Crashed --> Results"; A-08), instead of
+    // a 5 s wait in front of a disabled button.
+    if (s == null || !s.canRevive || !c.ads.rewardedReady) {
       _finish();
       return;
     }
@@ -189,7 +192,7 @@ class _GameScreenState extends State<GameScreen> {
             _EntryGuard(
               key: const ValueKey('revive'),
               child: _ReviveOverlay(
-                adReady: c.ads.rewardedReady,
+                adReady: c.ads.rewardedReadyListenable,
                 busy: _busy,
                 onWatch: _watchReviveAd,
                 onDecline: _finish,
@@ -203,7 +206,7 @@ class _GameScreenState extends State<GameScreen> {
                 newBest: _newBest,
                 best: c.progress.bestDistance,
                 totalCrystals: c.progress.crystals,
-                canDouble: !_doubled && c.ads.rewardedReady,
+                adReady: c.ads.rewardedReadyListenable,
                 doubled: _doubled,
                 busy: _busy,
                 onDouble: _watchDoubleAd,
@@ -273,7 +276,7 @@ class _ReviveOverlay extends StatefulWidget {
     required this.onDecline,
   });
 
-  final bool adReady;
+  final ValueListenable<bool> adReady;
   final bool busy;
   final VoidCallback onWatch;
   final VoidCallback onDecline;
@@ -314,10 +317,13 @@ class _ReviveOverlayState extends State<_ReviveOverlay> {
       const SizedBox(height: 8),
       Text('$_left', style: const TextStyle(fontSize: 40)),
       const SizedBox(height: 16),
-      FilledButton.icon(
-        onPressed: widget.adReady && !widget.busy ? widget.onWatch : null,
-        icon: const Icon(Icons.play_circle),
-        label: Text(widget.adReady ? 'Watch ad to revive' : 'No ad available'),
+      ValueListenableBuilder<bool>(
+        valueListenable: widget.adReady,
+        builder: (context, ready, _) => FilledButton.icon(
+          onPressed: ready && !widget.busy ? widget.onWatch : null,
+          icon: const Icon(Icons.play_circle),
+          label: Text(ready ? 'Watch ad to revive' : 'No ad available'),
+        ),
       ),
       TextButton(
         onPressed: widget.busy ? null : widget.onDecline,
@@ -333,7 +339,7 @@ class _ResultsOverlay extends StatelessWidget {
     required this.newBest,
     required this.best,
     required this.totalCrystals,
-    required this.canDouble,
+    required this.adReady,
     required this.doubled,
     required this.busy,
     required this.onDouble,
@@ -346,7 +352,7 @@ class _ResultsOverlay extends StatelessWidget {
   final bool newBest;
   final int best;
   final int totalCrystals;
-  final bool canDouble;
+  final ValueListenable<bool> adReady;
   final bool doubled;
   final bool busy;
   final VoidCallback onDouble;
@@ -377,10 +383,13 @@ class _ResultsOverlay extends StatelessWidget {
           style: const TextStyle(color: Colors.white70)),
       const SizedBox(height: 12),
       if (!doubled && earned > 0)
-        OutlinedButton.icon(
-          onPressed: canDouble && !busy ? onDouble : null,
-          icon: const Icon(Icons.play_circle),
-          label: Text(canDouble ? 'Watch ad: 2× crystals' : 'No ad available'),
+        ValueListenableBuilder<bool>(
+          valueListenable: adReady,
+          builder: (context, ready, _) => OutlinedButton.icon(
+            onPressed: ready && !busy ? onDouble : null,
+            icon: const Icon(Icons.play_circle),
+            label: Text(ready ? 'Watch ad: 2× crystals' : 'No ad available'),
+          ),
         ),
       const SizedBox(height: 8),
       FilledButton(
