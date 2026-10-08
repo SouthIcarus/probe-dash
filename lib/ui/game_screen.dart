@@ -87,7 +87,7 @@ class _GameScreenState extends State<GameScreen> {
     setState(() => _offerRevive = true);
   }
 
-  Future<void> _finish() async {
+  void _finish() {
     // Two paths can land here for one run (double tap on "No thanks", or the
     // countdown ending as the player taps). Only the first one counts.
     if (_finished) return;
@@ -96,7 +96,7 @@ class _GameScreenState extends State<GameScreen> {
     _beatTimer = null;
     final result = _game.finish();
     if (result == null) return;
-    final best = await c.completeRun(result);
+    final best = c.completeRun(result); // save stays queued, not awaited
     if (!mounted) return;
     setState(() {
       _result = result;
@@ -115,7 +115,7 @@ class _GameScreenState extends State<GameScreen> {
       _offerRevive = false;
       _game.revive();
     } else {
-      await _finish();
+      _finish();
     }
   }
 
@@ -140,14 +140,18 @@ class _GameScreenState extends State<GameScreen> {
       Navigator.of(context).pop();
       return;
     }
-    _game.phase.removeListener(_onPhase);
     setState(() {
       _busy = false;
       _result = null;
       _finished = false;
       _offerRevive = false;
-      _game = _makeGame(); // picks up any new upgrade levels
     });
+    // Same game, same GameWidget: just a new run with any new upgrade
+    // levels and the new best (GAME-4, FEEL-13).
+    _game.newRun(
+      upgradeLevels: c.progress.upgrades,
+      bestDistance: c.progress.bestDistance,
+    );
   }
 
   Future<void> _openUpgrades() async {

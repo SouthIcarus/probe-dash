@@ -14,10 +14,19 @@ import 'haptics.dart';
 /// Prototype art is plain vector shapes; real sprites come later. All game
 /// rules live in [RunSession]; this class only renders and forwards taps.
 class ProbeGame extends FlameGame {
-  ProbeGame({required this.upgradeLevels, required this.bestDistance});
+  ProbeGame({
+    required Map<UpgradeType, int> upgradeLevels,
+    required this._bestDistance,
+  }) : _upgradeLevels = Map.of(upgradeLevels);
 
-  final Map<UpgradeType, int> upgradeLevels;
-  final int bestDistance;
+  Map<UpgradeType, int> _upgradeLevels;
+  int _bestDistance;
+
+  /// Upgrade levels the current run was started with.
+  Map<UpgradeType, int> get upgradeLevels => _upgradeLevels;
+
+  /// The player's best distance (meters) when the current run started.
+  int get bestDistance => _bestDistance;
 
   /// UI listens to this to show the revive and results overlays.
   final ValueNotifier<RunPhase> phase = ValueNotifier(RunPhase.ready);
@@ -41,13 +50,46 @@ class ProbeGame extends FlameGame {
   static final Paint _floorBand = Paint()..color = const Color(0xB3FF5252);
   static final Paint _floorLine = Paint()..color = const Color(0xFFFF5252);
 
+  // Paints are created once and reused every frame (FEEL-12).
+  static final Paint _rock = Paint()..color = const Color(0xFF5D5A6E);
+  static final Paint _rim = Paint()..color = const Color(0xFF8C87A3);
+  static final Paint _crystal = Paint()..color = const Color(0xFF4DD0E1);
+  static final Paint _magnetCore = Paint()..color = const Color(0xFFE040FB);
+  static final Paint _magnetRing = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.5
+    ..color = const Color(0x88E040FB);
+  static final Paint _magnetField = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.3
+    ..color = const Color(0x44E040FB);
+  static final Paint _bestLine = Paint()
+    ..color = gold
+    ..strokeWidth = 1.0;
+  static final Paint _shieldRing = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.6;
+
+  /// Scratch paint for fills whose colour changes per draw.
+  final Paint _fill = Paint();
+  final Path _path = Path();
+
+  // HUD text painters, laid out again only when their text changes.
+  final _HudText _distanceText = _HudText();
+  final _HudText _bestText = _HudText();
+  final _HudText _crystalText = _HudText();
+  final _HudText _bestLabelText = _HudText();
+  final _HudText _bannerText = _HudText();
+  final _HudText _readyText = _HudText();
+  final List<_HudText> _popupTexts = [_HudText(), _HudText()];
+
   RunSession? _session;
   RunSession? get session => _session;
 
   late List<_Star> _stars;
   double _time = 0;
 
-  /// One shared random source for render-only effects.
+  /// One shared random source for render-only effects and the star field.
   static final math.Random _fx = math.Random();
 
   // Render-only effects (no effect on the simulation).
@@ -128,16 +170,20 @@ class ProbeGame extends FlameGame {
     if (size.x > 0 && size.y > 0 && _session == null) newRun();
   }
 
-  void newRun() {
-    final rnd = math.Random();
+  /// Starts a fresh run in this same game (GAME-4, FEEL-13): "Play again"
+  /// reuses the game instead of rebuilding the widget. Pass the player's
+  /// current upgrade levels and best distance.
+  void newRun({Map<UpgradeType, int>? upgradeLevels, int? bestDistance}) {
+    if (upgradeLevels != null) _upgradeLevels = Map.of(upgradeLevels);
+    if (bestDistance != null) _bestDistance = bestDistance;
     _session = RunSession(
         worldWidth: _worldWidth,
-        upgradeLevels: upgradeLevels,
-        bestDistance: bestDistance);
+        upgradeLevels: _upgradeLevels,
+        bestDistance: _bestDistance);
     _stars = List.generate(
       70,
-      (_) => _Star(rnd.nextDouble(), rnd.nextDouble() * Tuning.worldHeight,
-          0.1 + rnd.nextDouble() * 0.5),
+      (_) => _Star(_fx.nextDouble(), _fx.nextDouble() * Tuning.worldHeight,
+          0.1 + _fx.nextDouble() * 0.5),
     );
     _particles.clear();
     _popups.clear();
@@ -310,18 +356,16 @@ class ProbeGame extends FlameGame {
     canvas.restore();
 
     if (_flashLeft > 0) {
-      canvas.drawRect(
-          Offset.zero & size.toSize(),
-          Paint()
-            ..color = Color.fromRGBO(
-                255, 255, 255, 0.25 * _flashLeft / crashFlashSeconds));
+      _fill.color = Color.fromRGBO(
+          255, 255, 255, 0.25 * _flashLeft / crashFlashSeconds);
+      canvas.drawRect(Offset.zero & size.toSize(), _fill);
     }
 
     _drawHud(canvas, s);
   }
 
   void _drawStars(Canvas canvas, RunSession s) {
-    final paint = Paint();
+    final paint = _fill;
     final w = _worldWidth;
     for (final star in _stars) {
       final x = (star.x * w - s.renderScroll * star.depth) % w;
@@ -334,13 +378,7 @@ class ProbeGame extends FlameGame {
     if (bestDistance <= 0) return;
     final x = bestDistance / Tuning.metersPerUnit - s.renderScroll + s.probeX;
     if (x < -1 || x > _worldWidth + 1) return;
-    canvas.drawLine(
-      Offset(x, 0),
-      Offset(x, Tuning.worldHeight),
-      Paint()
-        ..color = gold
-        ..strokeWidth = 1.0,
-    );
+    canvas.drawLine(Offset(x, 0), Offset(x, Tuning.worldHeight), _bestLine);
   }
 
   /// "BEST" label at the top of the marker line, drawn in screen space.
@@ -348,7 +386,7 @@ class ProbeGame extends FlameGame {
     if (bestDistance <= 0) return;
     final x = bestDistance / Tuning.metersPerUnit - s.renderScroll + s.probeX;
     if (x < -10 || x > _worldWidth + 10) return;
-    _text(canvas, 'BEST', Offset(x * _scale, viewPadding.top + 4),
+    _bestLabelText.paint(canvas, 'BEST', Offset(x * _scale, viewPadding.top + 4),
         size.y * 0.022, gold,
         center: true);
   }
@@ -360,16 +398,15 @@ class ProbeGame extends FlameGame {
     canvas.save();
     canvas.translate(size.x / 2, size.y * 0.3);
     canvas.scale(scale);
-    _text(canvas, 'NEW BEST!', Offset.zero, size.y * 0.045,
-        gold.withValues(alpha: bannerAlpha(age)),
-        center: true);
+    _bannerText.paint(canvas, 'NEW BEST!', Offset.zero, size.y * 0.045, gold,
+        center: true, opacity: bannerAlpha(age));
     canvas.restore();
   }
 
   void _drawGate(Canvas canvas, RunSession s, Gate g) {
     final x = g.x - s.renderScroll;
-    final rock = Paint()..color = const Color(0xFF5D5A6E);
-    final edge = Paint()..color = const Color(0xFF8C87A3);
+    final rock = _rock;
+    final edge = _rim;
     const w = Tuning.gateWidth;
     // Square corners: the art matches the square hitbox exactly, so there
     // are no "invisible rock" corners (FEEL-05, art only).
@@ -386,23 +423,18 @@ class ProbeGame extends FlameGame {
     final c = Offset(s.renderPickupX(p) - s.renderScroll, s.renderPickupY(p));
     if (p.kind == PickupKind.crystal) {
       const r = Tuning.crystalRadius;
-      final path = Path()
+      final path = _path
+        ..reset()
         ..moveTo(c.dx, c.dy - r)
         ..lineTo(c.dx + r * 0.7, c.dy)
         ..lineTo(c.dx, c.dy + r)
         ..lineTo(c.dx - r * 0.7, c.dy)
         ..close();
-      canvas.drawPath(path, Paint()..color = const Color(0xFF4DD0E1));
+      canvas.drawPath(path, _crystal);
     } else {
       final pulse = 2.6 + math.sin(_time * 6) * 0.4;
-      canvas.drawCircle(c, pulse, Paint()..color = const Color(0xFFE040FB));
-      canvas.drawCircle(
-          c,
-          pulse + 1,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.5
-            ..color = const Color(0x88E040FB));
+      canvas.drawCircle(c, pulse, _magnetCore);
+      canvas.drawCircle(c, pulse + 1, _magnetRing);
     }
   }
 
@@ -416,35 +448,25 @@ class ProbeGame extends FlameGame {
         o == 1 ? color : color.withValues(alpha: color.a * o);
 
     if (s.sinceTap < 0.15 || s.inHeadStart) {
-      final flame = Path()
+      final flame = _path
+        ..reset()
         ..moveTo(c.dx - r * 0.9, c.dy - r * 0.5)
-        ..lineTo(c.dx - r * (2.2 + math.Random().nextDouble()), c.dy)
+        ..lineTo(c.dx - r * (2.2 + _fx.nextDouble()), c.dy)
         ..lineTo(c.dx - r * 0.9, c.dy + r * 0.5)
         ..close();
-      canvas.drawPath(flame, Paint()..color = fade(const Color(0xFFFF9100)));
+      canvas.drawPath(flame, _fill..color = fade(const Color(0xFFFF9100)));
     }
 
-    canvas.drawCircle(c, r, Paint()..color = fade(const Color(0xFFE3F2FD)));
+    canvas.drawCircle(c, r, _fill..color = fade(const Color(0xFFE3F2FD)));
     canvas.drawCircle(c.translate(r * 0.3, -r * 0.2), r * 0.45,
-        Paint()..color = fade(const Color(0xFF1E88E5)));
+        _fill..color = fade(const Color(0xFF1E88E5)));
 
     if (s.shieldHitsLeft > 0) {
       canvas.drawCircle(
-          c,
-          r + 1.4,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.6
-            ..color = fade(const Color(0xAA64FFDA)));
+          c, r + 1.4, _shieldRing..color = fade(const Color(0xAA64FFDA)));
     }
     if (s.magnetSeconds > 0) {
-      canvas.drawCircle(
-          c,
-          Tuning.magnetRadius,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 0.3
-            ..color = const Color(0x44E040FB));
+      canvas.drawCircle(c, Tuning.magnetRadius, _magnetField);
     }
   }
 
@@ -459,14 +481,14 @@ class ProbeGame extends FlameGame {
   }
 
   void _drawParticles(Canvas canvas, RunSession s) {
-    final paint = Paint();
+    final paint = _fill;
     for (final p in _particles) {
       final fade = 1 - p.age / p.life;
       paint.color = p.color.withValues(alpha: p.color.a * fade);
       final c = Offset(p.x - s.renderScroll, p.y);
       if (p.triangle) {
         final r = p.size * 0.58; // circumradius of a triangle with side p.size
-        final path = Path();
+        final path = _path..reset();
         for (var k = 0; k < 3; k++) {
           final a = p.spin + p.age * 8 + k * math.pi * 2 / 3;
           final pt = c + Offset(math.cos(a) * r, math.sin(a) * r);
@@ -489,44 +511,107 @@ class ProbeGame extends FlameGame {
     final left = pad + viewPadding.left;
     final top = hudTop;
     _drawBestLabel(canvas, s);
-    _text(canvas, '${s.distanceMeters.floor()} m', Offset(left, top),
-        size.y * 0.04, const Color(0xFFFFFFFF));
-    final best = bestLine(bestDistance, passed: s.passedBest);
+    _distanceText.paint(canvas, '${s.distanceMeters.floor()} m',
+        Offset(left, top), size.y * 0.04, const Color(0xFFFFFFFF));
+    final best = bestLine(_bestDistance, passed: s.passedBest);
     final hasBest = best != null;
     if (hasBest) {
-      _text(canvas, best, Offset(left, top + size.y * 0.05), size.y * 0.022,
-          gold);
+      _bestText.paint(canvas, best, Offset(left, top + size.y * 0.05),
+          size.y * 0.022, gold);
     }
-    _text(canvas, '◆ ${s.rawCrystals}',
+    _crystalText.paint(canvas, '◆ ${s.rawCrystals}',
         Offset(left, top + size.y * (hasBest ? 0.08 : 0.05)), size.y * 0.03,
         const Color(0xFF4DD0E1));
     _drawNewBestBanner(canvas);
-    for (final p in _popups) {
+    for (var i = 0; i < _popups.length; i++) {
+      final p = _popups[i];
       final t = p.age / popupSeconds;
       final y = (p.y - 4 - 6 * t) * _scale;
-      _text(canvas, p.text, Offset(s.probeX * _scale, y), size.y * 0.028,
-          const Color(0xFFFF9100).withValues(alpha: 1 - t),
-          center: true);
+      _popupTexts[i].paint(canvas, p.text, Offset(s.probeX * _scale, y),
+          size.y * 0.028, const Color(0xFFFF9100),
+          center: true, opacity: 1 - t);
     }
     if (s.phase == RunPhase.ready) {
-      _text(canvas, 'TAP TO FLY', Offset(size.x / 2, size.y * 0.7),
+      _readyText.paint(canvas, 'TAP TO FLY', Offset(size.x / 2, size.y * 0.7),
           size.y * 0.04, const Color(0xFFFFFFFF),
           center: true);
     }
   }
 
-  void _text(Canvas canvas, String text, Offset at, double fontSize,
-      Color color,
-      {bool center = false}) {
-    final tp = TextPainter(
-      text: TextSpan(
-          text: text,
-          style: TextStyle(
-              color: color, fontSize: fontSize, fontWeight: FontWeight.bold)),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, center ? at.translate(-tp.width / 2, 0) : at);
+  /// How many times HUD text has been laid out (FEEL-12 check).
+  @visibleForTesting
+  int get hudTextLayouts => [
+        _distanceText,
+        _bestText,
+        _crystalText,
+        _bestLabelText,
+        _bannerText,
+        _readyText,
+        ..._popupTexts,
+      ].fold(0, (n, t) => n + t.layouts);
+
+  @override
+  void onDispose() {
+    for (final t in [
+      _distanceText,
+      _bestText,
+      _crystalText,
+      _bestLabelText,
+      _bannerText,
+      _readyText,
+      ..._popupTexts,
+    ]) {
+      t.dispose();
+    }
+    super.onDispose();
   }
+}
+
+/// A HUD text painter that lays its text out again only when the text, size
+/// or colour changes (FEEL-12). Digits use tabular figures so numbers don't
+/// jitter sideways as they count.
+class _HudText {
+  final TextPainter _tp = TextPainter(textDirection: TextDirection.ltr);
+  String? _text;
+  double _fontSize = -1;
+  Color? _color;
+
+  /// Debug count of layouts, for tests and profiling.
+  int layouts = 0;
+
+  void paint(Canvas canvas, String text, Offset at, double fontSize,
+      Color color,
+      {bool center = false, double opacity = 1}) {
+    if (text != _text || fontSize != _fontSize || color != _color) {
+      _text = text;
+      _fontSize = fontSize;
+      _color = color;
+      _tp.text = TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontSize: fontSize,
+          fontWeight: FontWeight.bold,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      );
+      _tp.layout();
+      layouts++;
+    }
+    final o = center ? at.translate(-_tp.width / 2, 0) : at;
+    if (opacity >= 1) {
+      _tp.paint(canvas, o);
+      return;
+    }
+    if (opacity <= 0) return;
+    // Fade without a new layout: paint through a translucent layer.
+    canvas.saveLayer(o & _tp.size,
+        Paint()..color = Color.fromRGBO(0, 0, 0, opacity));
+    _tp.paint(canvas, o);
+    canvas.restore();
+  }
+
+  void dispose() => _tp.dispose();
 }
 
 /// A floating text pop-up anchored above the probe.

@@ -327,3 +327,27 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Files:** `lib/logic/upgrades.dart`, `lib/ui/game_screen.dart`,
   `test/logic/upgrades_test.dart` (new), `test/game_screen_test.dart`
 - **Refs:** AJ_PROBE `ux-plan.md` PR 1 #10; `ux-review.md` A-18; spec §8, US-3
+
+## #0018 — 2026-10-08 — CHANGE — Cheaper rendering and instant "Play again" on the same game
+- **What:** (1) HUD text uses cached `TextPainter`s that are laid out again
+  only when their text, size or colour changes; fading text (pop-ups,
+  banner) fades through a layer instead of a new layout; digits use
+  tabular figures. Painters are disposed in `ProbeGame.onDispose`.
+  (2) Paints are static or reused (no `Paint()` per draw call), paths are
+  reused, and one shared `Random` serves the thruster flicker, effects and
+  the star field (the flicker created a new `Random` every frame).
+  (3) "Play again" calls `ProbeGame.newRun(upgradeLevels:, bestDistance:)`
+  on the same game instead of building a new game and `GameWidget`.
+  (4) `GameController.completeRun` applies the run and queues the save
+  without awaiting it, so results show at once; `SaveStore` still writes
+  saves in order (GAME-6). Tests: Play again keeps the same `GameWidget`
+  element and game, returns to `ready` and carries the new best; results
+  appear while a save is still pending; HUD text is not re-laid out over
+  20 unchanged frames.
+- **Why:** FEEL-12: per-frame `TextPainter` layouts and allocations cause
+  frame spikes. FEEL-13 / GAME-4: restarting remounted the game widget;
+  reusing it makes "one more run" instant.
+- **Agent:** engineer
+- **Files:** `lib/game/probe_game.dart`, `lib/ui/game_screen.dart`,
+  `lib/app/game_controller.dart`, `test/game_screen_test.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #11; spec GAME-4, GAME-6

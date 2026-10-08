@@ -1,3 +1,4 @@
+import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -386,6 +387,63 @@ void main() {
       final c = makeController(crystals: 0);
       await toResults(tester, c);
       expect(find.textContaining('Upgrade ready'), findsNothing);
+    });
+  });
+
+  group('FEEL-12 / FEEL-13 render efficiency and restart', () {
+    testWidgets('Play again reuses the same game and GameWidget',
+        (tester) async {
+      final c = makeController(best: 0);
+      await pumpGame(tester, c);
+      final game = gameOf(tester);
+      final element = tester.element(find.byType(GameWidget<ProbeGame>));
+      final firstRun = game.session;
+
+      game.session!.reviveUsed = true;
+      game.tapInput();
+      game.session!.scroll = 300; // 150 m: a new best
+      await crashNow(tester);
+      await waitForOverlay(tester);
+      expect(c.progress.bestDistance, 150);
+
+      await tester.tap(find.text('PLAY AGAIN'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 16));
+
+      expect(find.text('PLAY AGAIN'), findsNothing);
+      expect(identical(gameOf(tester), game), isTrue);
+      expect(
+          identical(
+              tester.element(find.byType(GameWidget<ProbeGame>)), element),
+          isTrue);
+      expect(game.phase.value, RunPhase.ready);
+      expect(identical(game.session, firstRun), isFalse);
+      expect(game.bestDistance, 150); // new best carried into the new run
+      expect(game.session!.bestDistance, 150);
+    });
+
+    testWidgets('results show without waiting for the save', (tester) async {
+      final store = SlowStore();
+      final c = makeController(store: store);
+      await pumpGame(tester, c);
+      gameOf(tester).session!.reviveUsed = true;
+      await crashNow(tester);
+      await waitForOverlay(tester);
+      expect(find.text('PLAY AGAIN'), findsOneWidget);
+      expect(store.saves, 1); // queued, still pending
+      expect(store.pending.single.isCompleted, isFalse);
+    });
+
+    testWidgets('HUD text is laid out only when it changes', (tester) async {
+      await pumpGame(tester, makeController());
+      final g = gameOf(tester);
+      await tester.pump(const Duration(milliseconds: 16));
+      final before = g.hudTextLayouts;
+      expect(before, greaterThan(0));
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(g.hudTextLayouts, before); // "0 m", "◆ 0", "TAP TO FLY" unchanged
     });
   });
 }
