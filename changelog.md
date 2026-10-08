@@ -255,3 +255,21 @@ new entry that references the old one instead. Newest entries at the bottom.
   `lib/game/haptics.dart` (new), `test/logic/run_session_test.dart`,
   `test/game_screen_test.dart`
 - **Refs:** AJ_PROBE `ux-plan.md` PR 1 #6, D3, D4; `ux-review.md` A-00, A-03, A-17, A-29; #0010
+
+## #0014 — 2026-10-08 — CHANGE — Best-distance chase: HUD line, labelled marker, NEW BEST! banner
+- **What:** While the player has a best, the HUD shows "BEST <n> m" in
+  gold (`#FFD54F`, `size.y × 0.022`) under the distance; once passed it
+  reads "NEW BEST". The in-world best marker is now 1.0 u wide at full
+  alpha with a "BEST" label at its top (was 0.6 u, 53% alpha, unlabelled).
+  On the `newBest` run event (#0013) a "NEW BEST!" banner appears at 30%
+  screen height (`size.y × 0.045`), scales 0.6× → 1.0× over 150 ms, holds
+  800 ms, and fades over 300 ms. Tests: best-line text, banner
+  scale/alpha curve, and a widget test that passing the best shows the
+  banner and it clears after ~1.25 s. Thousands separators (A-25) are not
+  part of PR 1.
+- **Why:** A-04 / UX-04: the record was invisible until <1 s before
+  reaching it and passing it gave no moment; "chase your own record" is
+  the core hook (spec §2).
+- **Agent:** engineer
+- **Files:** `lib/game/probe_game.dart`, `test/game_screen_test.dart`
+- **Refs:** AJ_PROBE `ux-plan.md` PR 1 #7; `ux-review.md` A-04; spec §2, §8; #0013

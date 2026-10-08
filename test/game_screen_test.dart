@@ -311,4 +311,41 @@ void main() {
       expect(vibrations, isEmpty);
     });
   });
+
+  group('A-04 best-distance chase', () {
+    test('HUD best line', () {
+      expect(ProbeGame.bestLine(0, passed: false), isNull);
+      expect(ProbeGame.bestLine(1287, passed: false), 'BEST 1287 m');
+      expect(ProbeGame.bestLine(1287, passed: true), 'NEW BEST');
+    });
+
+    test('banner grows 0.6x to 1x in 150 ms, holds, fades by 1.25 s', () {
+      expect(ProbeGame.bannerScale(0), closeTo(0.6, 1e-9));
+      expect(ProbeGame.bannerScale(0.15), 1.0);
+      expect(ProbeGame.bannerAlpha(0.9), 1.0);
+      expect(ProbeGame.bannerAlpha(1.1), closeTo(0.5, 1e-9));
+      expect(ProbeGame.bannerAlpha(1.25), closeTo(0, 1e-9));
+      expect(ProbeGame.bannerAlpha(2), 0);
+    });
+
+    testWidgets('passing the best shows the NEW BEST! banner once',
+        (tester) async {
+      final c = makeController(best: 5);
+      await pumpGame(tester, c);
+      final g = gameOf(tester);
+      g.tapInput();
+      g.session!.invincibleSeconds = 1e9;
+      expect(g.newBestBannerAge, isNull);
+      for (var i = 0; i < 30 && !g.session!.passedBest; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(g.session!.passedBest, isTrue);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(g.newBestBannerAge, isNotNull);
+      for (var i = 0; i < 90; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(g.newBestBannerAge, isNull); // gone after ~1.25 s
+    });
+  });
 }

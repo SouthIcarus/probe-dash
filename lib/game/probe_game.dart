@@ -77,6 +77,34 @@ class ProbeGame extends FlameGame {
   /// A-29: at most one near-miss haptic per 300 ms.
   static const double nearMissHapticGap = 0.3;
 
+  /// Best-distance chase (A-04): "NEW BEST!" banner at 30% height; scales
+  /// 0.6× → 1.0× over 150 ms, holds 800 ms, fades over 300 ms.
+  static const double bannerGrow = 0.15;
+  static const double bannerHold = 0.8;
+  static const double bannerFade = 0.3;
+  static const Color gold = Color(0xFFFFD54F);
+
+  /// Seconds since the "NEW BEST!" banner appeared, or null when hidden.
+  double? newBestBannerAge;
+
+  /// Banner scale at [age] seconds.
+  static double bannerScale(double age) =>
+      age >= bannerGrow ? 1.0 : 0.6 + 0.4 * (age / bannerGrow);
+
+  /// Banner opacity at [age] seconds (0 once it has faded out).
+  static double bannerAlpha(double age) {
+    const fadeStart = bannerGrow + bannerHold;
+    if (age <= fadeStart) return 1;
+    return math.max(0, 1 - (age - fadeStart) / bannerFade);
+  }
+
+  /// The HUD's best line: "BEST 1287 m" while chasing, "NEW BEST" once
+  /// passed, nothing before the player has a best.
+  static String? bestLine(int best, {required bool passed}) {
+    if (best <= 0) return null;
+    return passed ? 'NEW BEST' : 'BEST $best m';
+  }
+
   double _hitStopLeft = 0;
   double _lastNearMissHaptic = -1;
   final List<_Popup> _popups = [];
@@ -109,6 +137,7 @@ class ProbeGame extends FlameGame {
     _shakeLeft = 0;
     _flashLeft = 0;
     _hitStopLeft = 0;
+    newBestBannerAge = null;
     phase.value = RunPhase.ready;
   }
 
@@ -153,9 +182,10 @@ class ProbeGame extends FlameGame {
         case RunEvent.crystal:
           _burst(s.probeWorldX, s.probeY, 4, const [Color(0xFF4DD0E1)],
               minSpeed: 12, maxSpeed: 12, life: 0.25, size: 0.6);
+        case RunEvent.newBest:
+          newBestBannerAge = 0;
         case RunEvent.magnet:
         case RunEvent.floorBounce:
-        case RunEvent.newBest:
         case RunEvent.headStartEnd:
           break;
       }
@@ -205,6 +235,12 @@ class ProbeGame extends FlameGame {
   }
 
   void _updateEffects(double dt) {
+    final banner = newBestBannerAge;
+    if (banner != null) {
+      final age = banner + dt;
+      newBestBannerAge =
+          age >= bannerGrow + bannerHold + bannerFade ? null : age;
+    }
     for (final p in _popups) {
       p.age += dt;
     }
@@ -290,14 +326,37 @@ class ProbeGame extends FlameGame {
   void _drawBestMarker(Canvas canvas, RunSession s) {
     if (bestDistance <= 0) return;
     final x = bestDistance / Tuning.metersPerUnit - s.scroll + s.probeX;
-    if (x < 0 || x > _worldWidth) return;
+    if (x < -1 || x > _worldWidth + 1) return;
     canvas.drawLine(
       Offset(x, 0),
       Offset(x, Tuning.worldHeight),
       Paint()
-        ..color = const Color(0x88FFD54F)
-        ..strokeWidth = 0.6,
+        ..color = gold
+        ..strokeWidth = 1.0,
     );
+  }
+
+  /// "BEST" label at the top of the marker line, drawn in screen space.
+  void _drawBestLabel(Canvas canvas, RunSession s) {
+    if (bestDistance <= 0) return;
+    final x = bestDistance / Tuning.metersPerUnit - s.scroll + s.probeX;
+    if (x < -10 || x > _worldWidth + 10) return;
+    _text(canvas, 'BEST', Offset(x * _scale, viewPadding.top + 4),
+        size.y * 0.022, gold,
+        center: true);
+  }
+
+  void _drawNewBestBanner(Canvas canvas) {
+    final age = newBestBannerAge;
+    if (age == null) return;
+    final scale = bannerScale(age);
+    canvas.save();
+    canvas.translate(size.x / 2, size.y * 0.3);
+    canvas.scale(scale);
+    _text(canvas, 'NEW BEST!', Offset.zero, size.y * 0.045,
+        gold.withValues(alpha: bannerAlpha(age)),
+        center: true);
+    canvas.restore();
   }
 
   void _drawGate(Canvas canvas, RunSession s, Gate g) {
@@ -421,10 +480,19 @@ class ProbeGame extends FlameGame {
     final pad = size.y * 0.02;
     final left = pad + viewPadding.left;
     final top = hudTop;
+    _drawBestLabel(canvas, s);
     _text(canvas, '${s.distanceMeters.floor()} m', Offset(left, top),
         size.y * 0.04, const Color(0xFFFFFFFF));
-    _text(canvas, '◆ ${s.rawCrystals}', Offset(left, top + size.y * 0.05),
-        size.y * 0.03, const Color(0xFF4DD0E1));
+    final best = bestLine(bestDistance, passed: s.passedBest);
+    final hasBest = best != null;
+    if (hasBest) {
+      _text(canvas, best, Offset(left, top + size.y * 0.05), size.y * 0.022,
+          gold);
+    }
+    _text(canvas, '◆ ${s.rawCrystals}',
+        Offset(left, top + size.y * (hasBest ? 0.08 : 0.05)), size.y * 0.03,
+        const Color(0xFF4DD0E1));
+    _drawNewBestBanner(canvas);
     for (final p in _popups) {
       final t = p.age / popupSeconds;
       final y = (p.y - 4 - 6 * t) * _scale;
