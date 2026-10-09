@@ -854,3 +854,13 @@ new entry that references the old one instead. Newest entries at the bottom.
   `.github/scripts/check-aab.sh` (all new)
 - **Refs:** SEC-1, SEC-3, SEC-15; CI-1, CI-2, CI-3, CI-13; REL-2, REL-3,
   REL-4; ENV-1, ENV-2, ENV-5, ENV-6, ENV-10, ENV-12; #0029, #0030, #0031
+
+## #0033 — 2026-10-09 — NOTE — Correction to #0027: 23 new tests, not 25
+- **What:** #0027 says PR F step 1 added 25 tests. The real number is
+  **23**: 21 in `test/config/env_test.dart` and 2 widget tests in
+  `test/widget_test.dart`. The suite goes from 180 to 203 tests, all
+  passing.
+- **Why:** Keep the record accurate (rule 2: correct with a new entry).
+- **Agent:** engineer
+- **Files:** none
+- **Refs:** #0027
