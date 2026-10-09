@@ -9,6 +9,7 @@ import '../app/game_controller.dart';
 import '../game/probe_game.dart';
 import '../logic/run_session.dart';
 import '../logic/upgrades.dart';
+import '../services/ad_service.dart';
 import 'upgrades_screen.dart';
 
 /// One play session: the game plus revive and results overlays.
@@ -108,10 +109,10 @@ class _GameScreenState extends State<GameScreen> {
   Future<void> _watchReviveAd() async {
     if (_busy) return;
     setState(() => _busy = true);
-    final watched = await c.ads.showRewarded();
+    final outcome = await c.ads.showRewarded();
     if (!mounted) return;
     setState(() => _busy = false);
-    if (watched) {
+    if (outcome == RewardedOutcome.earned) {
       _offerRevive = false;
       _game.revive();
     } else {

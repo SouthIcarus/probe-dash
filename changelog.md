@@ -501,3 +501,26 @@ new entry that references the old one instead. Newest entries at the bottom.
   `test/logic/progress_test.dart`
 - **Refs:** spec v2 AD-5 to AD-9, §3.3; AJ_PROBE
   `tech/plan-spec-v2-ads-analytics.md` step A-1, bug A3
+
+## #0024 — 2026-10-09 — CHANGE — Ad service reports how each ad ended (plan step A-2)
+- **What:** `AdService.showRewarded()` now returns `RewardedOutcome`
+  (`earned`, `closedEarly`, `failedToShow`, `notLoaded`) instead of a
+  bool, so "closed early" (shown, counts for AD-6) is no longer the same
+  as "failed to show" (not shown). The reward is still granted only for
+  `earned` (US-1). The interstitial gets a monotonic load `Stopwatch` and
+  `interstitialAge` (AD-7 expiry), `requestInterstitialLoad()` and
+  `discardStaleInterstitial()`, and a `_loadingInterstitial` flag so two
+  loads never run at once. `showInterstitial` takes `onShown`,
+  `onFailed` and `onDismissed` callbacks and returns at once; the ad is
+  disposed only on dismiss or failure, because the SDK can't cancel a
+  show already requested and a disposed ad's later callbacks are dropped.
+  Callers (`GameController`, `GameScreen`, `FakeAds`, the QA `HeldAds`
+  fake) are moved to the new types; the interim leave-Results call now
+  counts the ad when it appears. No behaviour change for players yet.
+- **Why:** Plan bugs A5 and A6: AD-6 needs "shown" vs "failed" and AD-7
+  needs the ad's age; AD-9 needs the moment the ad appears.
+- **Agent:** engineer
+- **Files:** `lib/services/ad_service.dart`, `lib/app/game_controller.dart`,
+  `lib/ui/game_screen.dart`, `test/support/fakes.dart`,
+  `test/qa_failure_paths_test.dart`
+- **Refs:** spec v2 AD-6, AD-7, AD-9, US-1; plan step A-2, bugs A5, A6

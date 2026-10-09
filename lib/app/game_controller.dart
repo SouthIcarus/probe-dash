@@ -35,8 +35,7 @@ class GameController extends ChangeNotifier {
 
   /// Rewarded "2× crystals" on the results screen. Returns true if granted.
   Future<bool> doubleCrystals(RunResult result) async {
-    final watched = await ads.showRewarded();
-    if (!watched) return false;
+    if (await ads.showRewarded() != RewardedOutcome.earned) return false;
     progress.applyDoubleCrystals(result);
     notifyListeners();
     await store.save(progress);
@@ -97,11 +96,21 @@ class GameController extends ChangeNotifier {
         InterstitialDecision.show) {
       return;
     }
-    if (await ads.showInterstitial()) {
-      progress
-        ..lastInterstitialAt = now
-        ..interstitialsShown += 1;
-      await store.save(progress);
-    }
+    final closed = Completer<void>();
+    final requested = ads.showInterstitial(
+      onShown: () {
+        progress
+          ..lastInterstitialAt = now
+          ..interstitialsShown += 1;
+        unawaited(store.save(progress));
+      },
+      onFailed: () {
+        if (!closed.isCompleted) closed.complete();
+      },
+      onDismissed: () {
+        if (!closed.isCompleted) closed.complete();
+      },
+    );
+    if (requested) await closed.future;
   }
 }

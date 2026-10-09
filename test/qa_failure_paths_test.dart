@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:probe_dash/game/haptics.dart';
 import 'package:probe_dash/logic/run_session.dart';
 import 'package:probe_dash/logic/upgrades.dart';
+import 'package:probe_dash/services/ad_service.dart';
 import 'package:probe_dash/ui/game_screen.dart';
 
 import 'support/fakes.dart';
@@ -16,12 +17,12 @@ import 'support/fakes.dart';
 class HeldAds extends FakeAds {
   HeldAds() : super(ready: true);
 
-  Completer<bool>? open;
+  Completer<RewardedOutcome>? open;
 
   @override
-  Future<bool> showRewarded() {
+  Future<RewardedOutcome> showRewarded() {
     rewardedShown++;
-    return (open = Completer<bool>()).future;
+    return (open = Completer<RewardedOutcome>()).future;
   }
 }
 
@@ -107,7 +108,7 @@ void main() {
       expect(c.progress.runs, 0); // countdown did not decline behind the ad
       expect(find.text('PLAY AGAIN'), findsNothing);
 
-      ads.open!.complete(true);
+      ads.open!.complete(RewardedOutcome.earned);
       await tester.pump(const Duration(milliseconds: 16));
       expect(gameOf(tester).phase.value, RunPhase.playing);
       expect(c.progress.runs, 0);
@@ -128,7 +129,7 @@ void main() {
       expect(find.byType(GameScreen), findsOneWidget);
       expect(c.progress.runs, 0);
 
-      ads.open!.complete(true);
+      ads.open!.complete(RewardedOutcome.earned);
       await tester.pump(const Duration(milliseconds: 16));
       expect(gameOf(tester).phase.value, RunPhase.playing);
     });

@@ -13,15 +13,25 @@ import 'package:probe_dash/services/ad_service.dart';
 import 'package:probe_dash/services/save_store.dart';
 
 /// An [AdService] that never touches the ads plugin. Rewarded ads are
-/// "ready" when [ready] is true and always complete with [watchResult].
+/// "ready" when [ready] is true and always end with [rewardedOutcome]
+/// (`watchResult: true` is shorthand for [RewardedOutcome.earned]; the
+/// default is a player who closes the ad early).
 class FakeAds extends AdService {
-  FakeAds({bool ready = true, this.watchResult = false})
-      : _ready = ValueNotifier(ready),
+  FakeAds({
+    bool ready = true,
+    bool watchResult = false,
+    RewardedOutcome? rewardedOutcome,
+  })  : _ready = ValueNotifier(ready),
+        rewardedOutcome = rewardedOutcome ??
+            (watchResult ? RewardedOutcome.earned : RewardedOutcome.closedEarly),
         super(enabled: false);
 
   final ValueNotifier<bool> _ready;
-  bool watchResult;
+  RewardedOutcome rewardedOutcome;
   int rewardedShown = 0;
+
+  set watchResult(bool v) => rewardedOutcome =
+      v ? RewardedOutcome.earned : RewardedOutcome.closedEarly;
 
   bool get ready => _ready.value;
   set ready(bool v) => _ready.value = v; // like an ad finishing loading
@@ -30,10 +40,10 @@ class FakeAds extends AdService {
   ValueListenable<bool> get rewardedReadyListenable => _ready;
 
   @override
-  Future<bool> showRewarded() async {
-    if (!ready) return false;
+  Future<RewardedOutcome> showRewarded() async {
+    if (!ready) return RewardedOutcome.notLoaded;
     rewardedShown++;
-    return watchResult;
+    return rewardedOutcome;
   }
 }
 
