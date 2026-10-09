@@ -790,3 +790,67 @@ new entry that references the old one instead. Newest entries at the bottom.
   (new), `.github/dependabot.yml` (new)
 - **Refs:** SEC-3, SEC-9, SEC-14; CI-3, CI-4, CI-5, CI-8, CI-9; ENV-R10;
   spec v3 US-13, AN-6; #0029, #0030
+
+## #0032 — 2026-10-09 — CHANGE — release.yml: tag-triggered beta/prod builds, dry run by default, never uploads to Play (PR F, step 5)
+- **What:** New `.github/workflows/release.yml` ("Release"), triggered by
+  tags `beta-v*` / `v*` and by `workflow_dispatch` (a rehearsal with a
+  tag name input). Jobs:
+  - **verify** (`.github/scripts/release-verify.sh`): tag matches
+    `^(beta-)?vX.Y.Z+N$`; `X.Y.Z` equals `pubspec.yaml`; N is greater than
+    every other `beta-v*`/`v*` tag; the commit is on `main`; the latest
+    `Repo rules`, `Build` and `Launch test` push runs on `main` for that
+    commit succeeded; a prod tag has a `beta-v*` tag on the same commit.
+    On a tag push all are errors; in a manual rehearsal the last three
+    are warnings.
+  - **test**: analyze + test.
+  - **build-dry-run** (default) or **build-signed**
+    (`.github/scripts/release-build.sh`): AAB + universal APK with
+    `--flavor <beta|prod> --dart-define-from-file=config/<flavor>.json
+    --build-name X.Y.Z --build-number N`. The dry run signs with a
+    throwaway key made on the runner ("CN=NOT FOR UPLOAD"), uses test ad
+    IDs and names everything `…-NOT-FOR-UPLOAD`. **Only `build-signed`
+    declares `environment: play-release`** and reads `UPLOAD_*` and (prod
+    only) `ADMOB_*` secrets, through `env:` only, written to
+    `$RUNNER_TEMP` and deleted in an `if: always()` step. Real ad unit IDs
+    go in as a second `--dart-define-from-file` in `$RUNNER_TEMP`, not on
+    the command line.
+  - **guards**: SHA-256 check; AAB (`.github/scripts/check-aab.sh`) not
+    debug-signed and signed at all, 16 KB, ad IDs; universal APK
+    (`check-apk.sh`) package, versionCode = N, targetSdk ≥ 36,
+    permission allow-list, 16 KB, ad IDs.
+  - **launch**: the emulator launch test on API 30/35/36 with the
+    universal APK.
+  - **publish**: only for a tag push in signed mode after all of the
+    above; `contents: write`; downloads the artifact and attaches the
+    **AAB and its SHA-256 only** (pre-release for beta, release for
+    prod). The R8 mapping is a workflow artifact (90 days signed, 30 days
+    dry run), never on the release. Nothing is sent to Play.
+- **Decision needed (owner):** how a tag push leaves dry-run mode. I used
+  a **repository variable** `PLAY_RELEASE_ENABLED=true` (a variable, not
+  a secret). Until the owner sets it, every tag push is a dry run.
+  Recommendation: set it only after creating `play-release` (tags `v*`,
+  `beta-v*`; owner as required reviewer) and its secrets.
+- **Deviation (note):** environments.md §5 step 20 says a prod build must
+  not contain the test publisher ID at all. That can't hold: the AD-3
+  runtime fallback (#0027) compiles the test IDs into every build. The
+  prod guard instead requires a real app ID **and** a real unit ID to be
+  present; dev/beta/dry runs require test IDs only.
+- **Not done here:** `GOOGLE_SERVICES_JSON` is not written yet (no
+  Firebase in the app; PR B adds it in `build-signed` only).
+- **Why:** environments.md §5 steps 16–23; spec v3 OPS-2, OPS-6, US-13;
+  security review SEC-1, SEC-3, SEC-15, CI-1 to CI-3, CI-13, REL-2,
+  REL-3, REL-4.
+- **Not verified:** CI-only. Verified locally: `actionlint`, YAML parse,
+  `shellcheck`; `release-verify.sh` rehearsed for good tags, a bad
+  format, an injection-style tag, a pubspec mismatch, a build number that
+  doesn't increase and the prod beta-tag rule (in a scratch clone).
+  Whether a tag created in the GitHub web UI triggers `push: tags`, and
+  how GitHub treats `environment: play-release` before the owner creates
+  it (it may auto-create it unprotected; only signed mode uses it), are
+  not verified.
+- **Agent:** engineer
+- **Files:** `.github/workflows/release.yml`,
+  `.github/scripts/release-verify.sh`, `.github/scripts/release-build.sh`,
+  `.github/scripts/check-aab.sh` (all new)
+- **Refs:** SEC-1, SEC-3, SEC-15; CI-1, CI-2, CI-3, CI-13; REL-2, REL-3,
+  REL-4; ENV-1, ENV-2, ENV-5, ENV-6, ENV-10, ENV-12; #0029, #0030, #0031
