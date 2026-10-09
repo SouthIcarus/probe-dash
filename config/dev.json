@@ -1,0 +1,7 @@
+{
+  "FLAVOR": "dev",
+  "ADS_MODE": "test",
+  "ANALYTICS": "off",
+  "BUILD_LABEL": "DEV",
+  "DEBUG_MENU": "false"
+}

@@ -594,3 +594,39 @@ new entry that references the old one instead. Newest entries at the bottom.
   `test/interstitial_flow_test.dart` (new)
 - **Refs:** spec v2 AD-1, AD-5 to AD-9, GAME-4, US-5, §7, §8; plan step
   A-4, bugs A1, A4, R1, S2; #0025
+
+## #0027 — 2026-10-09 — CHANGE — Build environment config and AD-3 runtime fallback (PR F, step 1)
+- **What:** New pure-Dart `lib/config/env.dart` (`EnvConfig`, `Flavor`)
+  reads the compile-time defines `FLAVOR`, `ADS_MODE`, `ANALYTICS`,
+  `BUILD_LABEL`, `DEBUG_MENU`, `ADMOB_REWARDED_ID`,
+  `ADMOB_INTERSTITIAL_ID`, plus Flutter's own `FLUTTER_APP_FLAVOR`,
+  `FLUTTER_BUILD_NAME` and `FLUTTER_BUILD_NUMBER`. With no defines
+  (`flutter test`, a bare local run) it defaults to flavor dev, Google
+  test ad units and analytics off. **Runtime fallback (AD-3, ENV-3):**
+  real ad unit IDs are used only when the config says `prod`, the Gradle
+  flavor is also `prod`, `ADS_MODE` is `real`, the platform is Android and
+  the ID is a well-formed AdMob unit ID; every other case gets the Google
+  test unit, so dev and beta can never get a real ID. Analytics is
+  allowed only in matching beta/prod builds with `ANALYTICS=on` (AN-6;
+  used from PR B). Debug menu flag is dev-only (ENV-9; no menu exists
+  yet). New non-secret `config/dev.json`, `config/beta.json`,
+  `config/prod.json` and `config/README.md`. `AdService` now takes its
+  unit IDs from `EnvConfig` instead of hard-coded test IDs. Home shows
+  the build label by flavor (UI-2 as amended in spec v3): dev "DEV ·
+  test ads" + version, beta "BETA X.Y.Z (N)", prod none; it replaces the
+  "Prototype · test ads only" line. 25 new tests: `test/config/env_test.dart`
+  (defaults, ID validation, every flavor × Gradle flavor × mode × platform
+  combination for dev/beta, label, analytics, debug menu) and 2 widget
+  tests in `test/widget_test.dart`. Test files build their fake "real" ID
+  at runtime so no real-looking ID is committed.
+- **Why:** environments.md §4 and §5 PR F step 4–5; spec v3 AD-3, AN-6,
+  OPS-1, UI-2; security review SEC-21 (runtime fallback when FLAVOR ≠
+  prod). Flavor decided by both the config and the Gradle flavor so a
+  mixed-up build is treated as not prod.
+- **Agent:** engineer
+- **Files:** `lib/config/env.dart` (new), `config/dev.json`,
+  `config/beta.json`, `config/prod.json`, `config/README.md` (new),
+  `lib/services/ad_service.dart`, `lib/ui/home_screen.dart`,
+  `test/config/env_test.dart` (new), `test/widget_test.dart`
+- **Refs:** spec v3 AD-3, AN-6, OPS-1, OPS-2, UI-2, US-13;
+  environments.md §4, §5 PR F; SEC-21; ENV-D2, ENV-D3

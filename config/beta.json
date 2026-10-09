@@ -1,0 +1,7 @@
+{
+  "FLAVOR": "beta",
+  "ADS_MODE": "test",
+  "ANALYTICS": "on",
+  "BUILD_LABEL": "BETA",
+  "DEBUG_MENU": "false"
+}
