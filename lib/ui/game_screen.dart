@@ -43,6 +43,14 @@ class _GameScreenState extends State<GameScreen> {
   Timer? _beatTimer;
   bool _offerRevive = false;
 
+  /// AD-8: Results is locked from Results-open until the interstitial
+  /// closes, fails, or 2 s pass. Buttons look disabled and back is ignored.
+  bool _locked = false;
+
+  /// The game engine is frozen because an interstitial is on screen (see
+  /// [_onInterstitialOnScreen]).
+  bool _frozenForAd = false;
+
   GameController get c => widget.controller;
 
   @override
@@ -53,6 +61,29 @@ class _GameScreenState extends State<GameScreen> {
     // shows the bars briefly.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     _game = _makeGame();
+    c.runStarted();
+    c.interstitialOnScreen.addListener(_onInterstitialOnScreen);
+    _onInterstitialOnScreen();
+  }
+
+  /// Late-ad guard (decision S2). The SDK can't cancel an interstitial once
+  /// requested at Results-open, so one may still appear after the 2 s lock
+  /// lifted, even after "Play again". Whenever any interstitial is on
+  /// screen the game engine is paused and taps are ignored, so the ad can
+  /// never cover a moving run: no physics, no crash, no score until it
+  /// closes. Then the engine resumes, as when the app returns from the
+  /// background. The game never *requests* an ad here; only
+  /// [GameController.openResults] does.
+  void _onInterstitialOnScreen() {
+    final up = c.interstitialOnScreen.value;
+    if (up && !_frozenForAd) {
+      _frozenForAd = true;
+      _game.pauseEngine();
+    } else if (!up && _frozenForAd) {
+      _frozenForAd = false;
+      _game.resumeEngine();
+    }
+    if (mounted) setState(() {});
   }
 
   ProbeGame _makeGame() {
@@ -97,19 +128,27 @@ class _GameScreenState extends State<GameScreen> {
     _beatTimer = null;
     final result = _game.finish();
     if (result == null) return;
-    final best = c.completeRun(result); // save stays queued, not awaited
+    // Results-open (spec v2 §7): saves the run and runs the AD-5 check. An
+    // interstitial, if any, is requested here and only here.
+    final open = c.openResults(result);
     if (!mounted) return;
     setState(() {
       _result = result;
-      _newBest = best;
+      _newBest = open.newBest;
       _doubled = false;
+      _locked = open.locked;
+    });
+    open.unlocked.then((_) {
+      if (mounted && identical(_result, result) && _locked) {
+        setState(() => _locked = false);
+      }
     });
   }
 
   Future<void> _watchReviveAd() async {
     if (_busy) return;
     setState(() => _busy = true);
-    final outcome = await c.ads.showRewarded();
+    final outcome = await c.showReviveAd(); // AD-6 marks the run
     if (!mounted) return;
     setState(() => _busy = false);
     if (outcome == RewardedOutcome.earned) {
@@ -132,17 +171,16 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
-  Future<void> _leaveResults({required bool playAgain}) async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    await c.maybeShowInterstitial();
-    if (!mounted) return;
+  /// "Play again" or "Home". Never shows an ad (GAME-4, AD-5): the only
+  /// interstitial trigger is Results-open.
+  void _leaveResults({required bool playAgain}) {
+    if (_busy || _locked) return;
     if (!playAgain) {
       Navigator.of(context).pop();
       return;
     }
+    c.runStarted();
     setState(() {
-      _busy = false;
       _result = null;
       _finished = false;
       _offerRevive = false;
@@ -166,15 +204,17 @@ class _GameScreenState extends State<GameScreen> {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     _beatTimer?.cancel();
     _game.phase.removeListener(_onPhase);
+    c.interstitialOnScreen.removeListener(_onInterstitialOnScreen);
     super.dispose();
   }
 
   /// Android back / back swipe mid-run (FEEL-03, A-07): instead of closing
   /// the screen and losing the run, end it through the normal finish path
   /// so its crystals are saved and the results show. No pause state here
-  /// (owner decision D1 pending).
+  /// (owner decision D1 pending). On a locked Results screen (AD-8) back
+  /// does nothing.
   void _onBack(bool didPop, Object? _) {
-    if (didPop || _busy) return; // an ad is on screen: ignore
+    if (didPop || _busy || _locked) return; // an ad is on screen: ignore
     _finish();
   }
 
@@ -182,7 +222,7 @@ class _GameScreenState extends State<GameScreen> {
   Widget build(BuildContext context) {
     final phase = _game.phase.value;
     return PopScope(
-      canPop: phase == RunPhase.ready || _result != null,
+      canPop: phase == RunPhase.ready || (_result != null && !_locked),
       onPopInvokedWithResult: _onBack,
       child: _buildBody(phase),
     );
@@ -197,7 +237,9 @@ class _GameScreenState extends State<GameScreen> {
           Positioned.fill(
             child: Listener(
               behavior: HitTestBehavior.opaque,
-              onPointerDown: (_) => _game.tapInput(),
+              onPointerDown: (_) {
+                if (!_frozenForAd) _game.tapInput();
+              },
               child: GameWidget(key: ObjectKey(_game), game: _game),
             ),
           ),
@@ -206,7 +248,7 @@ class _GameScreenState extends State<GameScreen> {
               key: const ValueKey('revive'),
               child: _ReviveOverlay(
                 adReady: c.ads.rewardedReadyListenable,
-                busy: _busy,
+                busy: _busy || _frozenForAd,
                 onWatch: _watchReviveAd,
                 onDecline: _finish,
               ),
@@ -224,6 +266,7 @@ class _GameScreenState extends State<GameScreen> {
                 adReady: c.ads.rewardedReadyListenable,
                 doubled: _doubled,
                 busy: _busy,
+                locked: _locked,
                 onDouble: _watchDoubleAd,
                 onPlayAgain: () => _leaveResults(playAgain: true),
                 onUpgrades: _openUpgrades,
@@ -358,6 +401,7 @@ class _ResultsOverlay extends StatelessWidget {
     required this.adReady,
     required this.doubled,
     required this.busy,
+    required this.locked,
     required this.onDouble,
     required this.onPlayAgain,
     required this.onUpgrades,
@@ -372,6 +416,9 @@ class _ResultsOverlay extends StatelessWidget {
   final ValueListenable<bool> adReady;
   final bool doubled;
   final bool busy;
+
+  /// AD-8 lock: every button shows as disabled and ignores taps.
+  final bool locked;
   final VoidCallback onDouble;
   final VoidCallback onPlayAgain;
   final VoidCallback onUpgrades;
@@ -379,6 +426,7 @@ class _ResultsOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final off = busy || locked;
     final earned = result.earnedCrystals * (doubled ? 2 : 1);
     return _Panel(children: [
       if (newBest)
@@ -403,14 +451,14 @@ class _ResultsOverlay extends StatelessWidget {
         ValueListenableBuilder<bool>(
           valueListenable: adReady,
           builder: (context, ready, _) => OutlinedButton.icon(
-            onPressed: ready && !busy ? onDouble : null,
+            onPressed: ready && !off ? onDouble : null,
             icon: const Icon(Icons.play_circle),
             label: Text(ready ? 'Watch ad: 2× crystals' : 'No ad available'),
           ),
         ),
       const SizedBox(height: 8),
       FilledButton(
-        onPressed: busy ? null : onPlayAgain,
+        onPressed: off ? null : onPlayAgain,
         style: FilledButton.styleFrom(minimumSize: const Size(200, 52)),
         child: const Text('PLAY AGAIN', style: TextStyle(fontSize: 18)),
       ),
@@ -419,7 +467,7 @@ class _ResultsOverlay extends StatelessWidget {
         // One line on every phone: the short label fits 360 dp at normal
         // font size, and scales down instead of wrapping when it doesn't.
         OutlinedButton.icon(
-          onPressed: busy ? null : onUpgrades,
+          onPressed: off ? null : onUpgrades,
           icon: const Icon(Icons.upgrade),
           label: FittedBox(
             fit: BoxFit.scaleDown,
@@ -429,8 +477,9 @@ class _ResultsOverlay extends StatelessWidget {
       ],
       // Wraps onto two lines at large font sizes instead of overflowing.
       Wrap(alignment: WrapAlignment.center, children: [
-        TextButton(onPressed: busy ? null : onUpgrades, child: const Text('Upgrades')),
-        TextButton(onPressed: busy ? null : onHome, child: const Text('Home')),
+        TextButton(
+            onPressed: off ? null : onUpgrades, child: const Text('Upgrades')),
+        TextButton(onPressed: off ? null : onHome, child: const Text('Home')),
       ]),
     ]);
   }

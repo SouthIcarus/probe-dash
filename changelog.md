@@ -561,3 +561,36 @@ new entry that references the old one instead. Newest entries at the bottom.
   `test/interstitial_controller_test.dart` (new)
 - **Refs:** spec v2 AD-5 to AD-9, US-5, §3.3, §7; plan step A-3, bugs A2,
   R1, S2; #0023, #0024
+
+## #0026 — 2026-10-09 — CHANGE — Results lock and no ad on Play again / Home (plan step A-4)
+- **What:** `GameScreen` calls `openResults` when Results opens and
+  locks Results until `unlocked` (AD-8): Play again, Home, Upgrades, the
+  upgrade shortcut and 2× show as disabled, and the back gesture is
+  ignored (`PopScope.canPop` is false while locked; fixes bug A4). After
+  the lock, back goes Home with no ad. `_leaveResults` no longer calls
+  the interstitial and is synchronous (fixes bug A1: Play again and Home
+  showed the ad; GAME-4). The revive button goes through
+  `GameController.showReviveAd` (AD-6); each new run calls `runStarted`.
+  `GameController.completeRun` and `maybeShowInterstitial` are removed
+  (no callers left). **Late-ad guard (decision S2):** while
+  `interstitialOnScreen` is true the screen pauses the Flame engine and
+  ignores taps (the revive countdown also pauses), then resumes it when
+  the ad closes, the same as returning from the background. So a late ad
+  that the SDK shows after Play again can't cover a moving run: no
+  physics, crash or score happen under it; it is counted (AD-9); the
+  screen doesn't change. New `test/interstitial_flow_test.dart` (18
+  widget tests): lock, 5 taps and back ignored, back inside the ad lands
+  on Results, one tap to Ready in < 1 s, 2 s timeout, failure, Play
+  again / Home / back never show an ad (runs 6 to 12 and the old A1
+  case), revive watched / closed early / failed, not loaded, remove_ads,
+  late ad during play / after Home / on Results, app kill during the ad.
+  Mutation-checked: dropping the lock, the back block, the freeze, or
+  adding an ad on leave each fails at least one test.
+- **Why:** Spec v2 AD-1, AD-5 to AD-9, GAME-4, §8 ResultsScreen states,
+  US-5; plan step A-4; Andy's S2 instruction that a late ad must be
+  harmless and provably never over gameplay.
+- **Agent:** engineer
+- **Files:** `lib/ui/game_screen.dart`, `lib/app/game_controller.dart`,
+  `test/interstitial_flow_test.dart` (new)
+- **Refs:** spec v2 AD-1, AD-5 to AD-9, GAME-4, US-5, §7, §8; plan step
+  A-4, bugs A1, A4, R1, S2; #0025
