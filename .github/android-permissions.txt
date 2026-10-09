@@ -5,9 +5,11 @@
 # Advertising-ID declaration) and made here in the same PR.
 # ${applicationId} = the app's own package (".dev" for dev).
 #
-# Source of each entry. NOT YET CONFIRMED BY A BUILD: written before the
-# first flavored CI build (no Android SDK in the authoring session). The
-# first `Build` run prints the real list; reconcile this file with it.
+# Confirmed against the first flavored CI build (Build run 37922551104,
+# probe-dash-dev-23.apk, 2026-10-09). Two guessed entries were not in the
+# real APK and were removed: RECEIVE_BOOT_COMPLETED and the declared
+# `permission ${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`
+# (the APK only has the uses-permission line).
 
 # App (spec A-29 haptics).
 uses-permission android.permission.VIBRATE
@@ -22,9 +24,7 @@ uses-permission android.permission.ACCESS_ADSERVICES_TOPICS
 
 # androidx.work (pulled in by the Ads SDK for offline pings).
 uses-permission android.permission.WAKE_LOCK
-uses-permission android.permission.RECEIVE_BOOT_COMPLETED
 uses-permission android.permission.FOREGROUND_SERVICE
 
 # androidx.core >= 1.9: guards non-exported dynamic receivers.
-permission ${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
 uses-permission ${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION

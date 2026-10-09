@@ -864,3 +864,25 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Agent:** engineer
 - **Files:** none
 - **Refs:** #0027
+
+## #0034 — 2026-10-09 — CHANGE — Reconcile APK guards with the first flavored CI build
+- **What:** The first `Build` run of PR #6 (run 37922551104,
+  `probe-dash-dev-23.apk`) compiled all flavors. The APK guards failed
+  for two reasons:
+  1. **Permission allow-list** (`.github/android-permissions.txt`): two
+     guessed entries were not in the real APK and were removed:
+     `RECEIVE_BOOT_COMPLETED` and the declared
+     `permission ${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`
+     (only the `uses-permission` line exists). The list now matches the
+     10 entries the build printed exactly.
+  2. **Ad-ID guard** (`check_ad_ids.py`): a `ca-app-pub-0000000000000000~…`
+     **placeholder** is compiled into a dependency's `classes.dex`; it is
+     not in our sources (grep). An all-zero publisher names no AdMob
+     account, so it can't serve ads or earn. In built artifacts it is now
+     printed as "placeholder (ignored)" and never counts as a real ID
+     (prod still needs a real app ID and unit ID). The repo scan stays
+     strict. Two self-test cases were added; all self-tests pass.
+- **Why:** The allow-list was written before any Android build existed
+  (#0030 said the first build would confirm it). The guard must flag
+  real IDs, not the SDK's placeholder.
+- **Files:** .github/android-permissions.txt, .github/scripts/check_ad_ids.py

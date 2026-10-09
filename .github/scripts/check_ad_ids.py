@@ -27,6 +27,11 @@ import sys
 import zipfile
 
 TEST_PUBLISHER = "3940256099942544"
+# All-zero publisher: a placeholder compiled into a dependency's classes.dex
+# (seen in the first flavored CI build, run 37922551104). It names no AdMob
+# account, so it can neither serve ads nor earn; it is ignored in built
+# artifacts and never counts as a real ID. The repo scan stays strict.
+PLACEHOLDER_PUBLISHER = "0" * 16
 PREFIX = "ca-app-pub-"
 ID_RE = re.compile(rb"ca-app-pub-(\d{16})([~/])(\d{10})")
 # UTF-16LE form of the pattern: each ASCII char followed by \x00.
@@ -113,6 +118,9 @@ def check_artifact(path, expect):
         data = f.read()
     hits = []
     scan_zip_bytes(data, os.path.basename(path), hits)
+    for name, (pub, sep) in sorted({h for h in hits if h[1][0] == PLACEHOLDER_PUBLISHER}):
+        print(f"  placeholder ca-app-pub-{mask(pub)}{sep}…  in {name} (ignored)")
+    hits = [h for h in hits if h[1][0] != PLACEHOLDER_PUBLISHER]
     pubs = {(pub, sep) for _, (pub, sep) in hits}
     non_test = sorted({h for h in hits if h[1][0] != TEST_PUBLISHER})
     for name, (pub, sep) in sorted(set(hits)):
@@ -180,6 +188,13 @@ def self_test():
                                         "AndroidManifest.xml": test_app.encode("utf-16-le")}),
          "real", 1),
         ("prod test only", make({"lib/libapp.so": test_unit.encode()}), "real", 1),
+        ("placeholder in dex ignored", make({"classes.dex": f"{PREFIX}{PLACEHOLDER_PUBLISHER}~{'0' * 10}".encode(),
+                                            "lib/libapp.so": test_unit.encode(),
+                                            "AndroidManifest.xml": test_app.encode("utf-16-le")}),
+         "test", 0),
+        ("placeholder is not a real prod id", make({"classes.dex": f"{PREFIX}{PLACEHOLDER_PUBLISHER}~{'0' * 10}".encode(),
+                                                   "lib/libapp.so": (real_unit + test_unit).encode()}),
+         "real", 1),
     ]
     failed = 0
     with tempfile.TemporaryDirectory() as d:
