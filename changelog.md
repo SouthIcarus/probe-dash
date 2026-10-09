@@ -373,3 +373,45 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Agent:** qa-engineer
 - **Files:** `test/qa_failure_paths_test.dart` (new)
 - **Refs:** AJ_PROBE `ux-plan.md` PR 1 #1–#6, #10; `ux-review.md` A-01, A-06, A-07, A-08, A-18, A-29; #0008–#0013, #0017
+
+## #0020 — 2026-10-09 — CHANGE — Strong, per-event haptics through the vibration motor (S26 checks 1, 8; A-29)
+- **What:** Game haptics on Android now go through a new
+  `probe_dash/haptics` platform channel in `MainActivity.kt`, which drives
+  the motor with `VibratorManager` (API 31+) / `Vibrator` (older):
+  `createOneShot` / `createWaveform` on API 26+ (amplitude falls back to
+  the default when the phone has no amplitude control), the legacy
+  pattern `vibrate` on API 24–25, and nothing when `hasVibrator()` is
+  false. Added the `VIBRATE` permission. Length and strength per event
+  live in Dart (`Haptics.patterns`, unit-tested): crash 80 ms at 255
+  (the only full-strength buzz), shield 40 ms at 170, near miss 20 ms at
+  110, new best a double pulse 35 + 35 ms at 170, upgrade buy 20 ms at
+  110. Closed A-29's gaps: `Haptics.newBest()` fires on
+  `RunEvent.newBest`, and `Haptics.upgradeBought()` fires on a successful
+  buy in the Upgrades screen (on the tap, not after the save).
+  `Haptics.enabled` and the static API are unchanged; the backend is
+  injectable (`Haptics.backend`) so tests record which event fired which
+  haptic. Channel errors (`PlatformException`, `MissingPluginException`)
+  are swallowed. iOS keeps Flutter's `HapticFeedback` calls. Existing
+  haptic tests now assert on the new channel / recorder (same
+  expectations: crash once, shield once, near miss throttled, none for
+  thrust or crystals, switch off silences all); new `test/haptics_test.dart`
+  (15 tests).
+- **Why:** Owner's S26 run of build 15 failed check 1 (crash "one strong
+  buzz") and check 8 (haptics per event) with touch vibration on. Root
+  cause: on Android Flutter's `heavyImpact`/`mediumImpact`/`lightImpact`
+  call `View.performHapticFeedback` with `CONTEXT_CLICK` / `KEYBOARD_TAP` /
+  `VIRTUAL_KEY` (Flutter engine `PlatformPlugin.vibrateHapticFeedback`).
+  These are short UI clicks tuned by the phone maker; One UI plays them as
+  faint, near-identical ticks, so there was no strong crash buzz and no
+  felt difference between events. Predefined effects (`EFFECT_HEAVY_CLICK`
+  etc.) were not used for the same reason: their strength is also
+  maker-tuned.
+- **Agent:** engineer
+- **Files:** `lib/game/haptics.dart`, `lib/game/probe_game.dart`,
+  `lib/ui/upgrades_screen.dart`,
+  `android/app/src/main/kotlin/com/southicarus/probe_dash/MainActivity.kt`,
+  `android/app/src/main/AndroidManifest.xml`, `test/haptics_test.dart`
+  (new), `test/support/fakes.dart`, `test/game_screen_test.dart`,
+  `test/qa_failure_paths_test.dart`
+- **Refs:** AJ_PROBE `qa/pr3-device-checklist.md` checks 1, 8;
+  `ux-review.md` A-29; spec FEEL-07; #0019

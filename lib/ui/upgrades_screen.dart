@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../app/game_controller.dart';
+import '../game/haptics.dart';
 import '../logic/upgrades.dart';
 
 /// Spend crystals on the four upgrades (spec US-3).
@@ -29,7 +30,12 @@ class _UpgradesScreenState extends State<UpgradesScreen> {
     _locked[type] = Timer(buyLock, () {
       if (mounted) setState(() => _locked.remove(type));
     });
-    await controller.buyUpgrade(type);
+    final before = controller.progress.level(type);
+    // The level changes synchronously inside buyUpgrade (before its save),
+    // so the haptic fires on the tap, not after the save.
+    final bought = controller.buyUpgrade(type);
+    if (controller.progress.level(type) > before) Haptics.upgradeBought();
+    await bought;
   }
 
   @override

@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Game haptics (spec A-29) drive the vibration motor directly. -->
+    <uses-permission android:name="android.permission.VIBRATE"/>
     <application
         android:label="Probe Dash"
         android:name="${applicationName}"

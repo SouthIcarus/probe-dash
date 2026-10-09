@@ -236,6 +236,7 @@ class ProbeGame extends FlameGame {
           _burst(s.probeWorldX, s.probeY, 4, const [Color(0xFF4DD0E1)],
               minSpeed: 12, maxSpeed: 12, life: 0.25, size: 0.6);
         case RunEvent.newBest:
+          Haptics.newBest(); // A-29: medium double pulse
           newBestBannerAge = 0;
         case RunEvent.magnet:
         case RunEvent.floorBounce:

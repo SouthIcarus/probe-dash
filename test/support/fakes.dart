@@ -5,6 +5,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:probe_dash/app/game_controller.dart';
+import 'package:probe_dash/game/haptics.dart';
 import 'package:probe_dash/game/probe_game.dart';
 import 'package:probe_dash/logic/progress.dart';
 import 'package:probe_dash/logic/tuning.dart';
@@ -106,4 +107,22 @@ Future<void> settle(WidgetTester tester) async {
 Future<void> waitForOverlay(WidgetTester tester) async {
   await tester.pump(const Duration(milliseconds: 600)); // beat ends
   await tester.pump(const Duration(milliseconds: 500)); // lock ends
+}
+
+/// A [HapticsBackend] that records which haptic each event asked for.
+class RecordingHaptics implements HapticsBackend {
+  final List<HapticKind> played = [];
+
+  @override
+  void play(HapticKind kind) => played.add(kind);
+}
+
+/// Routes [Haptics] to a fresh recorder for this test and restores the
+/// real backend afterwards.
+List<HapticKind> recordHaptics() {
+  final rec = RecordingHaptics();
+  final previous = Haptics.backend;
+  Haptics.backend = rec;
+  addTearDown(() => Haptics.backend = previous);
+  return rec.played;
 }
