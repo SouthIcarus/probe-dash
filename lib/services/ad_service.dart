@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+import '../config/env.dart';
+
 /// How a rewarded ad ended (spec AD-6, US-1).
 enum RewardedOutcome {
   /// Watched to the end: grant the reward.
@@ -20,21 +22,23 @@ enum RewardedOutcome {
   notLoaded,
 }
 
-/// Rewarded and interstitial ads. Uses ONLY Google's public test ad units
-/// (spec AD-3); swap in real IDs only right before store release.
+/// Rewarded and interstitial ads.
+///
+/// Ad unit IDs come from the build environment ([EnvConfig.adUnitIds]):
+/// Google's test units in dev, beta, tests and local runs; real units only
+/// in a prod build made by release.yml (spec v3 AD-3, ENV-3).
 class AdService {
-  AdService({this.enabled = true});
+  AdService({this.enabled = true, AdUnitIds? adUnits})
+    : adUnits = adUnits ?? env.adUnitIds(ios: Platform.isIOS);
 
   /// False in tests and on platforms without the ads plugin.
   final bool enabled;
 
-  // Google's documented test ad units. Safe to tap; never earn money.
-  static String get _rewardedId => Platform.isIOS
-      ? 'ca-app-pub-3940256099942544/1712485313'
-      : 'ca-app-pub-3940256099942544/5224354917';
-  static String get _interstitialId => Platform.isIOS
-      ? 'ca-app-pub-3940256099942544/4411468910'
-      : 'ca-app-pub-3940256099942544/1033173712';
+  /// The ad units this build loads.
+  final AdUnitIds adUnits;
+
+  String get _rewardedId => adUnits.rewarded;
+  String get _interstitialId => adUnits.interstitial;
 
   RewardedAd? _rewardedAd;
   InterstitialAd? _interstitial;
@@ -165,7 +169,8 @@ class AdService {
         _loadRewarded();
         if (!result.isCompleted) {
           result.complete(
-              earned ? RewardedOutcome.earned : RewardedOutcome.closedEarly);
+            earned ? RewardedOutcome.earned : RewardedOutcome.closedEarly,
+          );
         }
       },
       onAdFailedToShowFullScreenContent: (ad, e) {

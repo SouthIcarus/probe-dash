@@ -594,3 +594,315 @@ new entry that references the old one instead. Newest entries at the bottom.
   `test/interstitial_flow_test.dart` (new)
 - **Refs:** spec v2 AD-1, AD-5 to AD-9, GAME-4, US-5, §7, §8; plan step
   A-4, bugs A1, A4, R1, S2; #0025
+
+## #0027 — 2026-10-09 — CHANGE — Build environment config and AD-3 runtime fallback (PR F, step 1)
+- **What:** New pure-Dart `lib/config/env.dart` (`EnvConfig`, `Flavor`)
+  reads the compile-time defines `FLAVOR`, `ADS_MODE`, `ANALYTICS`,
+  `BUILD_LABEL`, `DEBUG_MENU`, `ADMOB_REWARDED_ID`,
+  `ADMOB_INTERSTITIAL_ID`, plus Flutter's own `FLUTTER_APP_FLAVOR`,
+  `FLUTTER_BUILD_NAME` and `FLUTTER_BUILD_NUMBER`. With no defines
+  (`flutter test`, a bare local run) it defaults to flavor dev, Google
+  test ad units and analytics off. **Runtime fallback (AD-3, ENV-3):**
+  real ad unit IDs are used only when the config says `prod`, the Gradle
+  flavor is also `prod`, `ADS_MODE` is `real`, the platform is Android and
+  the ID is a well-formed AdMob unit ID; every other case gets the Google
+  test unit, so dev and beta can never get a real ID. Analytics is
+  allowed only in matching beta/prod builds with `ANALYTICS=on` (AN-6;
+  used from PR B). Debug menu flag is dev-only (ENV-9; no menu exists
+  yet). New non-secret `config/dev.json`, `config/beta.json`,
+  `config/prod.json` and `config/README.md`. `AdService` now takes its
+  unit IDs from `EnvConfig` instead of hard-coded test IDs. Home shows
+  the build label by flavor (UI-2 as amended in spec v3): dev "DEV ·
+  test ads" + version, beta "BETA X.Y.Z (N)", prod none; it replaces the
+  "Prototype · test ads only" line. 25 new tests: `test/config/env_test.dart`
+  (defaults, ID validation, every flavor × Gradle flavor × mode × platform
+  combination for dev/beta, label, analytics, debug menu) and 2 widget
+  tests in `test/widget_test.dart`. Test files build their fake "real" ID
+  at runtime so no real-looking ID is committed.
+- **Why:** environments.md §4 and §5 PR F step 4–5; spec v3 AD-3, AN-6,
+  OPS-1, UI-2; security review SEC-21 (runtime fallback when FLAVOR ≠
+  prod). Flavor decided by both the config and the Gradle flavor so a
+  mixed-up build is treated as not prod.
+- **Agent:** engineer
+- **Files:** `lib/config/env.dart` (new), `config/dev.json`,
+  `config/beta.json`, `config/prod.json`, `config/README.md` (new),
+  `lib/services/ad_service.dart`, `lib/ui/home_screen.dart`,
+  `test/config/env_test.dart` (new), `test/widget_test.dart`
+- **Refs:** spec v3 AD-3, AN-6, OPS-1, OPS-2, UI-2, US-13;
+  environments.md §4, §5 PR F; SEC-21; ENV-D2, ENV-D3
+
+## #0028 — 2026-10-09 — CHANGE — CLAUDE.md points at the latest approved spec (spec.v3.md)
+- **What:** `CLAUDE.md` §0 said the source of truth is
+  `docs/products/probe-dash/spec.md`. It now says the latest approved
+  version in `docs/products/probe-dash/` of AJ_PROBE, currently
+  `spec.v3.md` (approved at G1, AJ_PROBE #0061). Small in-place edit
+  (rule 4 allows it for small fixes).
+- **Why:** Audy's audit (R-2 / P-1), relayed by Andy: agents reading
+  CLAUDE.md were pointed at the superseded v1 spec.
+- **Agent:** engineer
+- **Files:** `CLAUDE.md`
+- **Refs:** AJ_PROBE #0055, #0061
+
+## #0029 — 2026-10-09 — CHANGE — Android flavors dev / beta / prod, DEV icon, .gitignore for secrets (PR F, step 2)
+- **What:** `android/app/build.gradle.kts` adds the `env` flavor
+  dimension: **dev** (`applicationIdSuffix ".dev"` →
+  `com.southicarus.probe_dash.dev`, `versionNameSuffix "-dev"`, always the
+  debug key so `dev-N` APKs update in place), **beta** and **prod** (both
+  the locked Play ID `com.southicarus.probe_dash`, ENV-D1). The AdMob app
+  ID is a manifest placeholder: Google's test app ID in dev and beta; prod
+  uses env `ADMOB_APP_ID` only if release.yml sets it, else the test ID.
+  beta/prod sign with an `upload` signing config read from env
+  `UPLOAD_KEYSTORE_PATH`, `UPLOAD_KEYSTORE_PASSWORD`, `UPLOAD_KEY_ALIAS`,
+  `UPLOAD_KEY_PASSWORD`; without them they fall back to the debug key
+  (Play rejects it; release.yml refuses it). The release build type no
+  longer sets a signing config, because a build type's config would
+  override the flavor's. The manifest label is `@string/app_name`:
+  "Probe Dash" (`src/main/res/values/strings.xml`), "Probe Dash Dev"
+  (`src/dev/res/values/strings.xml`). The dev flavor has its own launcher
+  icon: the current icon with an orange **DEV** ribbon
+  (`src/dev/res/mipmap-*/ic_launcher.png`, generated from the main icons).
+  `pubspec.yaml`: version `0.1.0+1` (plan step 6) and
+  `default-flavor: dev`, so a bare `flutter run` / `flutter build apk`
+  builds dev (verified in the Flutter 3.47.6 tool source; it affects iOS
+  too, which has no flavor schemes yet). Root `.gitignore` adds `*.jks`,
+  `*.keystore`, `key.properties`, `google-services.json`,
+  `**/GoogleService-Info.plist`, `*.p12`, `*.pem`, `*.base64`, `*.b64`,
+  `.env*`, `config/*.secrets.json` (SEC-12). README: environments table,
+  dev install steps, flavor run/build commands.
+- **Owner note:** the dev app is a **new app** on the phone ("Probe Dash
+  Dev", `.dev` ID). It installs **next to** the old "Probe Dash"
+  prototype from `proto-N`; progress does not carry over. The old
+  prototype must be uninstalled before the Play build is installed
+  (ENV-R8).
+- **Why:** environments.md §5 PR F steps 1–3, 6, 7; spec v3 OPS-1, ENV-7;
+  security review SEC-9 (dev builds can no longer install over Play
+  builds), SEC-12.
+- **Not verified:** no Android SDK in this session (dl.google.com is
+  blocked by the egress proxy), so the Gradle changes were not built
+  locally; CI's `Build` and `Launch test` are the first build.
+- **Agent:** engineer
+- **Files:** `android/app/build.gradle.kts`,
+  `android/app/src/main/AndroidManifest.xml`,
+  `android/app/src/main/res/values/strings.xml` (new),
+  `android/app/src/dev/res/values/strings.xml` (new),
+  `android/app/src/dev/res/mipmap-*/ic_launcher.png` (new, 5 files),
+  `pubspec.yaml`, `.gitignore`, `README.md`
+- **Refs:** spec v3 OPS-1, AD-3, US-13; ENV-D1, ENV-D2, ENV-7, ENV-R8;
+  SEC-9, SEC-12; #0027
+
+## #0030 — 2026-10-09 — CHANGE — Secrets guard, APK guard scripts, Repo rules hardening (PR F, step 3)
+- **What:** Three guard scripts (Python 3 standard library only, each
+  with a `--self-test`):
+  - `.github/scripts/check_ad_ids.py`: `repo` mode fails if any tracked
+    file holds an AdMob ID (`ca-app-pub-<16 digits>` + `~` or `/`) whose
+    publisher is not Google's test publisher `3940256099942544`, or if a
+    `*.jks`, `*.keystore`, `key.properties`, `google-services.json`,
+    `GoogleService-Info.plist`, `*.p12`, `*.pem`, `*.base64`, `*.b64`,
+    `.env*` or `*.secrets.json` file is tracked. `artifact` mode scans a
+    built APK/AAB (every entry, nested zips, UTF-8 and UTF-16LE):
+    `--expect test` fails on any non-test publisher or on no ID at all;
+    `--expect real` (prod with secrets) requires a non-test app ID and a
+    non-test unit ID. IDs are printed masked.
+  - `.github/scripts/check_permissions.py`: compares the permissions in
+    `aapt2 dump badging` with the committed allow-list
+    `.github/android-permissions.txt` (own package written as
+    `${applicationId}`); fails on any addition or removal and prints the
+    actual list.
+  - `.github/scripts/check_16kb.py`: every 64-bit `.so` must have ELF
+    `PT_LOAD` alignment ≥ 16 KB, and in an APK a stored `.so` must sit at
+    a 16 KB zip offset.
+  `repo-rules.yml`: new job **"Secrets guard (no real AdMob IDs or
+  signing files)"** runs the self-tests and the repo scan on every push
+  and PR. The existing job keeps its name; its checkout is pinned to a
+  commit SHA with `persist-credentials: false`, and the force-push
+  message takes the branch name from `env:` instead of
+  `${{ github.ref_name }}` inside `run:`.
+- **Why:** security review SEC-13 (script injection), SEC-3 / CI-4 / CI-5
+  (pins, no persisted token), SEC-21 / CI-10 / ENV-4 (repo guard),
+  SEC-6 / SEC-20 / REL-3 (permission allow-list), F8 / ENV-12 / REL-2
+  (16 KB). Python avoids needing aapt2 or zipalign for the ID and 16 KB
+  checks.
+- **Not verified:** the allow-list is written from SDK knowledge, not from
+  a build (no Android SDK here; Maven/dl.google.com blocked). Unconfirmed
+  entries: the three AdServices permissions, `WAKE_LOCK`,
+  `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE` and
+  `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`. The first `Build` run
+  prints the real list; if it differs, `Build` fails until the list is
+  reconciled in a reviewed commit. Verified locally: all self-tests pass;
+  the repo scan passes on this tree and fails on a staged file with a
+  fake non-test ID; `actionlint` passes.
+- **Agent:** engineer
+- **Files:** `.github/scripts/check_ad_ids.py`,
+  `.github/scripts/check_permissions.py`, `.github/scripts/check_16kb.py`,
+  `.github/android-permissions.txt` (all new),
+  `.github/workflows/repo-rules.yml`
+- **Refs:** SEC-3, SEC-6, SEC-13, SEC-20, SEC-21; CI-4, CI-5, CI-6,
+  CI-10; REL-2, REL-3; ENV-4, ENV-12; #0027, #0029
+
+## #0031 — 2026-10-09 — CHANGE — Build and Launch test move to the dev/beta flavors; dev-N pre-releases; CI hardening (PR F, step 4)
+- **What:**
+  - **`build.yml`** (workflow name `Build`; job names "Analyze and
+    test" and "Build APK" unchanged): builds `flutter build apk --release
+    --flavor dev --dart-define-from-file=config/dev.json` on every push
+    and PR, then runs the new `.github/scripts/check-apk.sh` (package
+    `com.southicarus.probe_dash.dev`, targetSdk ≥ 36, versionCode = run
+    number, permission allow-list, 16 KB, test ad IDs only). Publishing
+    moved to a new job **"Publish dev pre-release"**: only on push to
+    `main`, `contents: write`, no checkout or build steps, it downloads
+    the artifact and creates release **`dev-<run>`** ("Dev build N",
+    `probe-dash-dev-N.apk`). It replaces `proto-<run>`; old `proto-*`
+    releases are untouched. The build jobs are `contents: read`. The
+    debug-key cache (same key as before, `prototype-debug-keystore-v1`)
+    is restored and saved only on push to `main`; PR builds sign with a
+    throwaway key Gradle generates.
+  - **`launch-test.yml`** (name `Launch test`): a matrix of dev on API
+    30/35/36 (check names unchanged: "Opens without crashing (Android
+    API N)") plus **beta on API 36** ("Opens without crashing (beta,
+    Android API 36)", `com.southicarus.probe_dash`). Builds use the
+    flavor's config with `--dart-define=ANALYTICS=off` (a `--dart-define`
+    wins over the file, checked in the Flutter 3.47.6 tool source).
+  - All workflows: every action pinned to a full commit SHA with a
+    version comment (latest release of each, all on the Node 24
+    runtime), `persist-credentials: false` on every checkout, `flutter
+    pub get --enforce-lockfile` before analyze/test/build.
+  - New **`.github/dependabot.yml`**: weekly `github-actions` (grouped)
+    and `pub` updates.
+- **Owner note:** the next `main` build publishes **`dev-N`**, not
+  `proto-N`. It installs as a **new app, "Probe Dash Dev"**, next to the
+  old prototype; prototype progress does not carry over. Required-check
+  names: the existing ones are kept; the new checks are "Secrets guard
+  (no real AdMob IDs or signing files)", "Opens without crashing (beta,
+  Android API 36)" and "Publish dev pre-release" (main only).
+- **Why:** environments.md §5 steps 9–15; security review SEC-3, SEC-9,
+  SEC-14, CI-3 to CI-5, CI-8, CI-9; spec v3 US-13 ("Probe Dash Dev"
+  installs next to the Play app).
+- **Not verified:** CI-only. The first flavored build, the APK guards
+  (including the unconfirmed permission entries, #0030) and the emulator
+  runs happen on the first push. `subosito/flutter-action` v2.23.0 is a
+  composite action that itself uses `actions/cache@v5` by tag (not
+  pinnable from here). `distributionSha256Sum` for the Gradle wrapper
+  (SEC-14) was **skipped**: the official checksum on services.gradle.org
+  could not be fetched (egress proxy 403), so it could not be verified.
+  Verified locally: `actionlint`, YAML parse, `shellcheck`.
+- **Agent:** engineer
+- **Files:** `.github/workflows/build.yml`,
+  `.github/workflows/launch-test.yml`, `.github/scripts/check-apk.sh`
+  (new), `.github/dependabot.yml` (new)
+- **Refs:** SEC-3, SEC-9, SEC-14; CI-3, CI-4, CI-5, CI-8, CI-9; ENV-R10;
+  spec v3 US-13, AN-6; #0029, #0030
+
+## #0032 — 2026-10-09 — CHANGE — release.yml: tag-triggered beta/prod builds, dry run by default, never uploads to Play (PR F, step 5)
+- **What:** New `.github/workflows/release.yml` ("Release"), triggered by
+  tags `beta-v*` / `v*` and by `workflow_dispatch` (a rehearsal with a
+  tag name input). Jobs:
+  - **verify** (`.github/scripts/release-verify.sh`): tag matches
+    `^(beta-)?vX.Y.Z+N$`; `X.Y.Z` equals `pubspec.yaml`; N is greater than
+    every other `beta-v*`/`v*` tag; the commit is on `main`; the latest
+    `Repo rules`, `Build` and `Launch test` push runs on `main` for that
+    commit succeeded; a prod tag has a `beta-v*` tag on the same commit.
+    On a tag push all are errors; in a manual rehearsal the last three
+    are warnings.
+  - **test**: analyze + test.
+  - **build-dry-run** (default) or **build-signed**
+    (`.github/scripts/release-build.sh`): AAB + universal APK with
+    `--flavor <beta|prod> --dart-define-from-file=config/<flavor>.json
+    --build-name X.Y.Z --build-number N`. The dry run signs with a
+    throwaway key made on the runner ("CN=NOT FOR UPLOAD"), uses test ad
+    IDs and names everything `…-NOT-FOR-UPLOAD`. **Only `build-signed`
+    declares `environment: play-release`** and reads `UPLOAD_*` and (prod
+    only) `ADMOB_*` secrets, through `env:` only, written to
+    `$RUNNER_TEMP` and deleted in an `if: always()` step. Real ad unit IDs
+    go in as a second `--dart-define-from-file` in `$RUNNER_TEMP`, not on
+    the command line.
+  - **guards**: SHA-256 check; AAB (`.github/scripts/check-aab.sh`) not
+    debug-signed and signed at all, 16 KB, ad IDs; universal APK
+    (`check-apk.sh`) package, versionCode = N, targetSdk ≥ 36,
+    permission allow-list, 16 KB, ad IDs.
+  - **launch**: the emulator launch test on API 30/35/36 with the
+    universal APK.
+  - **publish**: only for a tag push in signed mode after all of the
+    above; `contents: write`; downloads the artifact and attaches the
+    **AAB and its SHA-256 only** (pre-release for beta, release for
+    prod). The R8 mapping is a workflow artifact (90 days signed, 30 days
+    dry run), never on the release. Nothing is sent to Play.
+- **Decision needed (owner):** how a tag push leaves dry-run mode. I used
+  a **repository variable** `PLAY_RELEASE_ENABLED=true` (a variable, not
+  a secret). Until the owner sets it, every tag push is a dry run.
+  Recommendation: set it only after creating `play-release` (tags `v*`,
+  `beta-v*`; owner as required reviewer) and its secrets.
+- **Deviation (note):** environments.md §5 step 20 says a prod build must
+  not contain the test publisher ID at all. That can't hold: the AD-3
+  runtime fallback (#0027) compiles the test IDs into every build. The
+  prod guard instead requires a real app ID **and** a real unit ID to be
+  present; dev/beta/dry runs require test IDs only.
+- **Not done here:** `GOOGLE_SERVICES_JSON` is not written yet (no
+  Firebase in the app; PR B adds it in `build-signed` only).
+- **Why:** environments.md §5 steps 16–23; spec v3 OPS-2, OPS-6, US-13;
+  security review SEC-1, SEC-3, SEC-15, CI-1 to CI-3, CI-13, REL-2,
+  REL-3, REL-4.
+- **Not verified:** CI-only. Verified locally: `actionlint`, YAML parse,
+  `shellcheck`; `release-verify.sh` rehearsed for good tags, a bad
+  format, an injection-style tag, a pubspec mismatch, a build number that
+  doesn't increase and the prod beta-tag rule (in a scratch clone).
+  Whether a tag created in the GitHub web UI triggers `push: tags`, and
+  how GitHub treats `environment: play-release` before the owner creates
+  it (it may auto-create it unprotected; only signed mode uses it), are
+  not verified.
+- **Agent:** engineer
+- **Files:** `.github/workflows/release.yml`,
+  `.github/scripts/release-verify.sh`, `.github/scripts/release-build.sh`,
+  `.github/scripts/check-aab.sh` (all new)
+- **Refs:** SEC-1, SEC-3, SEC-15; CI-1, CI-2, CI-3, CI-13; REL-2, REL-3,
+  REL-4; ENV-1, ENV-2, ENV-5, ENV-6, ENV-10, ENV-12; #0029, #0030, #0031
+
+## #0033 — 2026-10-09 — NOTE — Correction to #0027: 23 new tests, not 25
+- **What:** #0027 says PR F step 1 added 25 tests. The real number is
+  **23**: 21 in `test/config/env_test.dart` and 2 widget tests in
+  `test/widget_test.dart`. The suite goes from 180 to 203 tests, all
+  passing.
+- **Why:** Keep the record accurate (rule 2: correct with a new entry).
+- **Agent:** engineer
+- **Files:** none
+- **Refs:** #0027
+
+## #0034 — 2026-10-09 — CHANGE — Reconcile APK guards with the first flavored CI build
+- **What:** The first `Build` run of PR #6 (run 37922551104,
+  `probe-dash-dev-23.apk`) compiled all flavors. The APK guards failed
+  for two reasons:
+  1. **Permission allow-list** (`.github/android-permissions.txt`): two
+     guessed entries were not in the real APK and were removed:
+     `RECEIVE_BOOT_COMPLETED` and the declared
+     `permission ${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`
+     (only the `uses-permission` line exists). The list now matches the
+     10 entries the build printed exactly.
+  2. **Ad-ID guard** (`check_ad_ids.py`): a `ca-app-pub-0000000000000000~…`
+     **placeholder** is compiled into a dependency's `classes.dex`; it is
+     not in our sources (grep). An all-zero publisher names no AdMob
+     account, so it can't serve ads or earn. In built artifacts it is now
+     printed as "placeholder (ignored)" and never counts as a real ID
+     (prod still needs a real app ID and unit ID). The repo scan stays
+     strict. Two self-test cases were added; all self-tests pass.
+- **Why:** The allow-list was written before any Android build existed
+  (#0030 said the first build would confirm it). The guard must flag
+  real IDs, not the SDK's placeholder.
+- **Files:** .github/android-permissions.txt, .github/scripts/check_ad_ids.py
+
+## #0035 — 2026-10-09 — CHANGE — Extra agent safety rules in .claude/settings.json (SEC-16)
+- **What:** Added 15 deny rules for Claude sessions in this repo: no
+  `git push --force-with-lease`, `--delete` or `+` refspecs, no
+  `git reset --hard`, `git branch -D` or `git tag`, no `gh release`,
+  `gh secret` or `gh pr merge`, no `printenv`/`env`, and no reading
+  `*.jks`, `*.keystore`, `key.properties` or `google-services.json`.
+- **Why:** The owner approved security finding SEC-16 (AJ_PROBE #0073).
+  These are speed bumps; GitHub rulesets remain the real control.
+- **Files:** .claude/settings.json
+
+## #0036 — 2026-10-09 — CHANGE — No tool cache in the signed release job (PR6-SEC-5)
+- **What:** In `release.yml` job `build-signed`, the only job that holds
+  the upload key, `subosito/flutter-action` now runs with `cache: false`.
+- **Why:** Security review of PR #6 (AJ_PROBE
+  `security/pr6-review.md`, PR6-SEC-5, Low): a poisoned Actions cache
+  entry restored into that job could run code next to the keystore. The
+  job runs rarely (tagged releases only), so skipping the cache costs a
+  few minutes per release.
+- **Files:** .github/workflows/release.yml

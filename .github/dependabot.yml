@@ -1,0 +1,19 @@
+# Keeps the SHA-pinned actions and the locked pub packages current
+# (security review SEC-3, SEC-14, CI-4). Dependabot PRs go through the same
+# checks and the owner's merge gate as any other PR; each still needs a
+# changelog.md entry (Repo rules) before it can merge.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pub
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

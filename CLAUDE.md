@@ -10,8 +10,9 @@ through asteroid gaps, plus crystals that buy upgrades and skins, with ads
 and small in-app purchases. It is the first product of the owner's
 AJ_PROBE toolkit.
 
-- **The spec is the source of truth:** `docs/products/probe-dash/spec.md`
-  in the `SouthIcarus/AJ_PROBE` repo. Requirement IDs in code comments and
+- **The spec is the source of truth:** the latest approved version in
+  `docs/products/probe-dash/` of the `SouthIcarus/AJ_PROBE` repo
+  (currently `spec.v3.md`, approved at G1 in AJ_PROBE #0061). Requirement IDs in code comments and
   changelog entries (GAME-1, IAP-3, AD-1, ...) refer to that spec.
 - **Stack:** Flutter + Flame (Dart). Game rules live in `lib/logic/` as
   pure Dart with no Flutter imports, so `flutter test` covers them.
