@@ -630,3 +630,15 @@ new entry that references the old one instead. Newest entries at the bottom.
   `test/config/env_test.dart` (new), `test/widget_test.dart`
 - **Refs:** spec v3 AD-3, AN-6, OPS-1, OPS-2, UI-2, US-13;
   environments.md §4, §5 PR F; SEC-21; ENV-D2, ENV-D3
+
+## #0028 — 2026-10-09 — CHANGE — CLAUDE.md points at the latest approved spec (spec.v3.md)
+- **What:** `CLAUDE.md` §0 said the source of truth is
+  `docs/products/probe-dash/spec.md`. It now says the latest approved
+  version in `docs/products/probe-dash/` of AJ_PROBE, currently
+  `spec.v3.md` (approved at G1, AJ_PROBE #0061). Small in-place edit
+  (rule 4 allows it for small fixes).
+- **Why:** Audy's audit (R-2 / P-1), relayed by Andy: agents reading
+  CLAUDE.md were pointed at the superseded v1 spec.
+- **Agent:** engineer
+- **Files:** `CLAUDE.md`
+- **Refs:** AJ_PROBE #0055, #0061
