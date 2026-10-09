@@ -2,6 +2,8 @@ name: Repo rules
 
 # Enforces the hard rules in CLAUDE.md: every commit logs a changelog.md
 # entry, changelog.md is append-only, and core files are archived, not deleted.
+# The "Secrets guard" job fails if a real AdMob ID or a signing /
+# service-config file is tracked (spec v3 AD-3, ENV-4; security CI-10).
 
 on:
   pull_request:
@@ -15,14 +17,17 @@ jobs:
     name: Changelog and no-delete rules
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Block force-pushes
         if: github.event_name == 'push' && github.event.forced
+        env:
+          REF_NAME: ${{ github.ref_name }} # via env, never inline (SEC-13)
         run: |
-          echo "::error title=Repo rules (CLAUDE.md)::Force-push to ${{ github.ref_name }} detected. History rewrites can erase changelog entries (rule 5)."
+          echo "::error title=Repo rules (CLAUDE.md)::Force-push to ${REF_NAME} detected. History rewrites can erase changelog entries (rule 5)."
           exit 1
 
       - name: Check commits
@@ -44,3 +49,20 @@ jobs:
             fi
           fi
           bash .github/scripts/check-repo-rules.sh "$base" "$head"
+
+  guard:
+    name: Secrets guard (no real AdMob IDs or signing files)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Guard scripts self-test
+        run: |
+          python3 -I .github/scripts/check_ad_ids.py --self-test
+          python3 -I .github/scripts/check_permissions.py --self-test
+          python3 -I .github/scripts/check_16kb.py --self-test
+
+      - name: No non-test AdMob ID, keystore or google-services.json tracked
+        run: python3 -I .github/scripts/check_ad_ids.py repo

@@ -689,3 +689,52 @@ new entry that references the old one instead. Newest entries at the bottom.
   `pubspec.yaml`, `.gitignore`, `README.md`
 - **Refs:** spec v3 OPS-1, AD-3, US-13; ENV-D1, ENV-D2, ENV-7, ENV-R8;
   SEC-9, SEC-12; #0027
+
+## #0030 — 2026-10-09 — CHANGE — Secrets guard, APK guard scripts, Repo rules hardening (PR F, step 3)
+- **What:** Three guard scripts (Python 3 standard library only, each
+  with a `--self-test`):
+  - `.github/scripts/check_ad_ids.py`: `repo` mode fails if any tracked
+    file holds an AdMob ID (`ca-app-pub-<16 digits>` + `~` or `/`) whose
+    publisher is not Google's test publisher `3940256099942544`, or if a
+    `*.jks`, `*.keystore`, `key.properties`, `google-services.json`,
+    `GoogleService-Info.plist`, `*.p12`, `*.pem`, `*.base64`, `*.b64`,
+    `.env*` or `*.secrets.json` file is tracked. `artifact` mode scans a
+    built APK/AAB (every entry, nested zips, UTF-8 and UTF-16LE):
+    `--expect test` fails on any non-test publisher or on no ID at all;
+    `--expect real` (prod with secrets) requires a non-test app ID and a
+    non-test unit ID. IDs are printed masked.
+  - `.github/scripts/check_permissions.py`: compares the permissions in
+    `aapt2 dump badging` with the committed allow-list
+    `.github/android-permissions.txt` (own package written as
+    `${applicationId}`); fails on any addition or removal and prints the
+    actual list.
+  - `.github/scripts/check_16kb.py`: every 64-bit `.so` must have ELF
+    `PT_LOAD` alignment ≥ 16 KB, and in an APK a stored `.so` must sit at
+    a 16 KB zip offset.
+  `repo-rules.yml`: new job **"Secrets guard (no real AdMob IDs or
+  signing files)"** runs the self-tests and the repo scan on every push
+  and PR. The existing job keeps its name; its checkout is pinned to a
+  commit SHA with `persist-credentials: false`, and the force-push
+  message takes the branch name from `env:` instead of
+  `${{ github.ref_name }}` inside `run:`.
+- **Why:** security review SEC-13 (script injection), SEC-3 / CI-4 / CI-5
+  (pins, no persisted token), SEC-21 / CI-10 / ENV-4 (repo guard),
+  SEC-6 / SEC-20 / REL-3 (permission allow-list), F8 / ENV-12 / REL-2
+  (16 KB). Python avoids needing aapt2 or zipalign for the ID and 16 KB
+  checks.
+- **Not verified:** the allow-list is written from SDK knowledge, not from
+  a build (no Android SDK here; Maven/dl.google.com blocked). Unconfirmed
+  entries: the three AdServices permissions, `WAKE_LOCK`,
+  `RECEIVE_BOOT_COMPLETED`, `FOREGROUND_SERVICE` and
+  `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`. The first `Build` run
+  prints the real list; if it differs, `Build` fails until the list is
+  reconciled in a reviewed commit. Verified locally: all self-tests pass;
+  the repo scan passes on this tree and fails on a staged file with a
+  fake non-test ID; `actionlint` passes.
+- **Agent:** engineer
+- **Files:** `.github/scripts/check_ad_ids.py`,
+  `.github/scripts/check_permissions.py`, `.github/scripts/check_16kb.py`,
+  `.github/android-permissions.txt` (all new),
+  `.github/workflows/repo-rules.yml`
+- **Refs:** SEC-3, SEC-6, SEC-13, SEC-20, SEC-21; CI-4, CI-5, CI-6,
+  CI-10; REL-2, REL-3; ENV-4, ENV-12; #0027, #0029

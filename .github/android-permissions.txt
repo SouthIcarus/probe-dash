@@ -1,0 +1,30 @@
+# Permission allow-list for every release-type APK (dev, beta, prod).
+# Checked by .github/scripts/check_permissions.py in `Build` and
+# `release.yml` (security review SEC-6, SEC-20, REL-3). Any addition or
+# removal fails the build; a wanted change is reviewed (Play Data Safety,
+# Advertising-ID declaration) and made here in the same PR.
+# ${applicationId} = the app's own package (".dev" for dev).
+#
+# Source of each entry. NOT YET CONFIRMED BY A BUILD: written before the
+# first flavored CI build (no Android SDK in the authoring session). The
+# first `Build` run prints the real list; reconcile this file with it.
+
+# App (spec A-29 haptics).
+uses-permission android.permission.VIBRATE
+
+# google_mobile_ads plugin + Google Mobile Ads SDK / UMP.
+uses-permission android.permission.INTERNET
+uses-permission android.permission.ACCESS_NETWORK_STATE
+uses-permission com.google.android.gms.permission.AD_ID
+uses-permission android.permission.ACCESS_ADSERVICES_AD_ID
+uses-permission android.permission.ACCESS_ADSERVICES_ATTRIBUTION
+uses-permission android.permission.ACCESS_ADSERVICES_TOPICS
+
+# androidx.work (pulled in by the Ads SDK for offline pings).
+uses-permission android.permission.WAKE_LOCK
+uses-permission android.permission.RECEIVE_BOOT_COMPLETED
+uses-permission android.permission.FOREGROUND_SERVICE
+
+# androidx.core >= 1.9: guards non-exported dynamic receivers.
+permission ${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+uses-permission ${applicationId}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
