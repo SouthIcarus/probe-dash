@@ -172,7 +172,9 @@ jobs:
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
-          cache: true
+          # No tool cache in the job that holds the upload key: a poisoned
+          # cache entry could otherwise run inside it (PR6-SEC-5).
+          cache: false
       - run: flutter pub get --enforce-lockfile
 
       # Secrets go in through env only, are written to $RUNNER_TEMP (never

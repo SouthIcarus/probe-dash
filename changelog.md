@@ -896,3 +896,13 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Why:** The owner approved security finding SEC-16 (AJ_PROBE #0073).
   These are speed bumps; GitHub rulesets remain the real control.
 - **Files:** .claude/settings.json
+
+## #0036 — 2026-10-09 — CHANGE — No tool cache in the signed release job (PR6-SEC-5)
+- **What:** In `release.yml` job `build-signed`, the only job that holds
+  the upload key, `subosito/flutter-action` now runs with `cache: false`.
+- **Why:** Security review of PR #6 (AJ_PROBE
+  `security/pr6-review.md`, PR6-SEC-5, Low): a poisoned Actions cache
+  entry restored into that job could run code next to the keystore. The
+  job runs rarely (tagged releases only), so skipping the cache costs a
+  few minutes per release.
+- **Files:** .github/workflows/release.yml
