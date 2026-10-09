@@ -46,3 +46,17 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Signing material and service config: never commit (spec v3 OPS-2,
+# security review SEC-12). CI writes these to $RUNNER_TEMP only.
+*.jks
+*.keystore
+key.properties
+google-services.json
+**/GoogleService-Info.plist
+*.p12
+*.pem
+*.base64
+*.b64
+.env*
+config/*.secrets.json

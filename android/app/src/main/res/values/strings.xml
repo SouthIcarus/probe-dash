@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launcher name for beta and prod. dev overrides it in src/dev. -->
+    <string name="app_name">Probe Dash</string>
+</resources>

@@ -2,7 +2,7 @@
     <!-- Game haptics (spec A-29) drive the vibration motor directly. -->
     <uses-permission android:name="android.permission.VIBRATE"/>
     <application
-        android:label="Probe Dash"
+        android:label="@string/app_name"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
@@ -28,11 +28,12 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <!-- AdMob: Google's public TEST app ID (spec AD-3). Replace with the
-             real AdMob app ID only right before store release. -->
+        <!-- AdMob app ID from the flavor (android/app/build.gradle.kts):
+             Google's TEST app ID in dev and beta (spec v3 AD-3); prod gets
+             the real one only from release.yml secrets (OPS-2). -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713"/>
+            android:value="${admobAppId}"/>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

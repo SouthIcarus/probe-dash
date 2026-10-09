@@ -16,7 +16,9 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+# Pre-launch semver (environments.md §5 step 6). Release tags beta-vX.Y.Z+N /
+# vX.Y.Z+N must match X.Y.Z here; CI overrides the build number.
+version: 0.1.0+1
 
 environment:
   sdk: ^3.13.5
@@ -54,6 +56,10 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  # `flutter run` / `flutter build apk` with no --flavor builds dev
+  # (spec v3 OPS-1). Android only: iOS has no flavor schemes yet, so iOS
+  # builds need an explicit Xcode scheme setup first.
+  default-flavor: dev
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in

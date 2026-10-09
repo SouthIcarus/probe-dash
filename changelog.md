@@ -642,3 +642,50 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Agent:** engineer
 - **Files:** `CLAUDE.md`
 - **Refs:** AJ_PROBE #0055, #0061
+
+## #0029 — 2026-10-09 — CHANGE — Android flavors dev / beta / prod, DEV icon, .gitignore for secrets (PR F, step 2)
+- **What:** `android/app/build.gradle.kts` adds the `env` flavor
+  dimension: **dev** (`applicationIdSuffix ".dev"` →
+  `com.southicarus.probe_dash.dev`, `versionNameSuffix "-dev"`, always the
+  debug key so `dev-N` APKs update in place), **beta** and **prod** (both
+  the locked Play ID `com.southicarus.probe_dash`, ENV-D1). The AdMob app
+  ID is a manifest placeholder: Google's test app ID in dev and beta; prod
+  uses env `ADMOB_APP_ID` only if release.yml sets it, else the test ID.
+  beta/prod sign with an `upload` signing config read from env
+  `UPLOAD_KEYSTORE_PATH`, `UPLOAD_KEYSTORE_PASSWORD`, `UPLOAD_KEY_ALIAS`,
+  `UPLOAD_KEY_PASSWORD`; without them they fall back to the debug key
+  (Play rejects it; release.yml refuses it). The release build type no
+  longer sets a signing config, because a build type's config would
+  override the flavor's. The manifest label is `@string/app_name`:
+  "Probe Dash" (`src/main/res/values/strings.xml`), "Probe Dash Dev"
+  (`src/dev/res/values/strings.xml`). The dev flavor has its own launcher
+  icon: the current icon with an orange **DEV** ribbon
+  (`src/dev/res/mipmap-*/ic_launcher.png`, generated from the main icons).
+  `pubspec.yaml`: version `0.1.0+1` (plan step 6) and
+  `default-flavor: dev`, so a bare `flutter run` / `flutter build apk`
+  builds dev (verified in the Flutter 3.47.6 tool source; it affects iOS
+  too, which has no flavor schemes yet). Root `.gitignore` adds `*.jks`,
+  `*.keystore`, `key.properties`, `google-services.json`,
+  `**/GoogleService-Info.plist`, `*.p12`, `*.pem`, `*.base64`, `*.b64`,
+  `.env*`, `config/*.secrets.json` (SEC-12). README: environments table,
+  dev install steps, flavor run/build commands.
+- **Owner note:** the dev app is a **new app** on the phone ("Probe Dash
+  Dev", `.dev` ID). It installs **next to** the old "Probe Dash"
+  prototype from `proto-N`; progress does not carry over. The old
+  prototype must be uninstalled before the Play build is installed
+  (ENV-R8).
+- **Why:** environments.md §5 PR F steps 1–3, 6, 7; spec v3 OPS-1, ENV-7;
+  security review SEC-9 (dev builds can no longer install over Play
+  builds), SEC-12.
+- **Not verified:** no Android SDK in this session (dl.google.com is
+  blocked by the egress proxy), so the Gradle changes were not built
+  locally; CI's `Build` and `Launch test` are the first build.
+- **Agent:** engineer
+- **Files:** `android/app/build.gradle.kts`,
+  `android/app/src/main/AndroidManifest.xml`,
+  `android/app/src/main/res/values/strings.xml` (new),
+  `android/app/src/dev/res/values/strings.xml` (new),
+  `android/app/src/dev/res/mipmap-*/ic_launcher.png` (new, 5 files),
+  `pubspec.yaml`, `.gitignore`, `README.md`
+- **Refs:** spec v3 OPS-1, AD-3, US-13; ENV-D1, ENV-D2, ENV-7, ENV-R8;
+  SEC-9, SEC-12; #0027
