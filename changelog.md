@@ -373,3 +373,109 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Agent:** qa-engineer
 - **Files:** `test/qa_failure_paths_test.dart` (new)
 - **Refs:** AJ_PROBE `ux-plan.md` PR 1 #1–#6, #10; `ux-review.md` A-01, A-06, A-07, A-08, A-18, A-29; #0008–#0013, #0017
+
+## #0020 — 2026-10-09 — CHANGE — Strong, per-event haptics through the vibration motor (S26 checks 1, 8; A-29)
+- **What:** Game haptics on Android now go through a new
+  `probe_dash/haptics` platform channel in `MainActivity.kt`, which drives
+  the motor with `VibratorManager` (API 31+) / `Vibrator` (older):
+  `createOneShot` / `createWaveform` on API 26+ (amplitude falls back to
+  the default when the phone has no amplitude control), the legacy
+  pattern `vibrate` on API 24–25, and nothing when `hasVibrator()` is
+  false. Added the `VIBRATE` permission. Length and strength per event
+  live in Dart (`Haptics.patterns`, unit-tested): crash 80 ms at 255
+  (the only full-strength buzz), shield 40 ms at 170, near miss 20 ms at
+  110, new best a double pulse 35 + 35 ms at 170, upgrade buy 20 ms at
+  110. Closed A-29's gaps: `Haptics.newBest()` fires on
+  `RunEvent.newBest`, and `Haptics.upgradeBought()` fires on a successful
+  buy in the Upgrades screen (on the tap, not after the save).
+  `Haptics.enabled` and the static API are unchanged; the backend is
+  injectable (`Haptics.backend`) so tests record which event fired which
+  haptic. Channel errors (`PlatformException`, `MissingPluginException`)
+  are swallowed. iOS keeps Flutter's `HapticFeedback` calls. Existing
+  haptic tests now assert on the new channel / recorder (same
+  expectations: crash once, shield once, near miss throttled, none for
+  thrust or crystals, switch off silences all); new `test/haptics_test.dart`
+  (15 tests).
+- **Why:** Owner's S26 run of build 15 failed check 1 (crash "one strong
+  buzz") and check 8 (haptics per event) with touch vibration on. Root
+  cause: on Android Flutter's `heavyImpact`/`mediumImpact`/`lightImpact`
+  call `View.performHapticFeedback` with `CONTEXT_CLICK` / `KEYBOARD_TAP` /
+  `VIRTUAL_KEY` (Flutter engine `PlatformPlugin.vibrateHapticFeedback`).
+  These are short UI clicks tuned by the phone maker; One UI plays them as
+  faint, near-identical ticks, so there was no strong crash buzz and no
+  felt difference between events. Predefined effects (`EFFECT_HEAVY_CLICK`
+  etc.) were not used for the same reason: their strength is also
+  maker-tuned.
+- **Agent:** engineer
+- **Files:** `lib/game/haptics.dart`, `lib/game/probe_game.dart`,
+  `lib/ui/upgrades_screen.dart`,
+  `android/app/src/main/kotlin/com/southicarus/probe_dash/MainActivity.kt`,
+  `android/app/src/main/AndroidManifest.xml`, `test/haptics_test.dart`
+  (new), `test/support/fakes.dart`, `test/game_screen_test.dart`,
+  `test/qa_failure_paths_test.dart`
+- **Refs:** AJ_PROBE `qa/pr3-device-checklist.md` checks 1, 8;
+  `ux-review.md` A-29; spec FEEL-07; #0019
+
+## #0021 — 2026-10-09 — CHANGE — Upgrade shortcut on one line, font-safe results card, buys never blocked by a stuck save (S26 check 13; A-18, A-22, A-27)
+- **What:** (1) The results shortcut label is now
+  "Upgrade: Crystal Value Lv1 – 100 ◆" (was "Upgrade ready: …"), on one
+  line: it fits 360 dp at normal font size and scales down instead of
+  wrapping when it doesn't (`UpgradeOffer.label`, max 36 characters,
+  unit-tested). (2) The revive / results card (`_Panel`) clamps text to
+  1.3× and scrolls when taller than the screen (A-27); outer margin
+  24 → 16 dp and card padding 24 → 20 dp; the "Upgrades · Home" row wraps
+  instead of overflowing. (3) `GameController.buyUpgrade` still ignores a
+  buy while the previous one is saving (A-22), but waits at most 2 s
+  (`buySaveWaitLimit`) for that save, so a save that never finishes can't
+  block every later buy. New `test/phone_size_test.dart` runs at S26 sizes
+  (1080 × 2340 px at DPR 2.63 → 411 × 891 dp and DPR 3 → 360 × 780 dp,
+  84 px camera inset): shortcut on one line, fully on screen, hittable
+  and opens Upgrades; "Upgrades" button opens Upgrades and back returns;
+  every Buy button hittable and a fast double tap buys one level; 2× font
+  has no overflow and buttons stay reachable; the A-27 800 × 360 at 2×
+  case; and a stuck save. Existing shortcut tests updated to the new label.
+- **Why:** Owner's S26 check 13: "cannot click upgrade". **Not
+  reproduced.** At S26 sizes the old shortcut was on screen, hittable and
+  opened Upgrades, and Buy worked (these tests pass against the old
+  layout at 1× and 1.3× font). Andy's web build of main at 412 × 915 agreed
+  (shortcut opened Upgrades; double tap bought one level) and saw the
+  label wrap so "◆" sat alone on a second line. Ruled out by reading the
+  code: `SaveStore.save` catches every error, so a save only hangs if
+  file IO itself hangs (now capped anyway); `immersiveSticky` passes
+  taps through to the app (only edge swipes reveal the bars); the 400 ms
+  entry lock and tile lock clear on timers. Found and fixed: at large
+  system font (2×) the old card overflowed, leaving the shortcut and
+  "Upgrades / Home" drawn outside the card where taps don't reach them
+  (3 of the new tests fail against the old layout), plus the wrapped
+  label Andy reported.
+- **Agent:** engineer
+- **Files:** `lib/ui/game_screen.dart`, `lib/logic/upgrades.dart`,
+  `lib/app/game_controller.dart`, `test/phone_size_test.dart` (new),
+  `test/logic/upgrades_test.dart`, `test/game_screen_test.dart`,
+  `test/qa_failure_paths_test.dart`
+- **Refs:** AJ_PROBE `qa/pr3-device-checklist.md` check 13 (its expected
+  label text changes); `ux-review.md` A-18, A-22, A-27; #0017
+
+## #0022 — 2026-10-09 — NOTE — S26 check 9 "no new best": logic verified, not reproduced
+- **What:** Verified best / NEW BEST end to end at S26 sizes in
+  `test/phone_size_test.dart`: first run ever (best 0) gives no banner or
+  haptic by design and results say "NEW BEST!"; PLAY AGAIN on the same
+  game carries the new best ("BEST 60 m"), the gold line is on screen
+  ahead of the probe 10 m before it, passing it fires one `newBest`
+  (banner at full opacity, centred inside the screen below the HUD; HUD
+  line "NEW BEST"; one new-best haptic) and results say "NEW BEST!"; Home
+  → PLAY starts a game with the saved best; a run equal to the best is
+  not a new best in the run or on results (both use the floored meters).
+  Added small test hooks in `ProbeGame` (`bestMarkerX`,
+  `bestMarkerWorldX`, `newBestBannerAnchor`) that the drawing code now
+  uses, so the tests check the same numbers that are drawn.
+- **Why:** Owner reported check 9 "no new best". No code fault found;
+  Andy's web build at 412 × 915 also showed the HUD switch and the banner.
+  Likely test condition: the best carried over from earlier builds
+  (installing over keeps the save) was higher than the runs played, or
+  the first run after a fresh install (best 0, no banner by design).
+  Owner to recheck with Home → "Best: N m" noted first and a run past N.
+- **Agent:** engineer
+- **Files:** `lib/game/probe_game.dart`, `test/phone_size_test.dart`
+- **Refs:** AJ_PROBE `qa/pr3-device-checklist.md` check 9; `ux-review.md`
+  A-04; #0018

@@ -236,6 +236,7 @@ class ProbeGame extends FlameGame {
           _burst(s.probeWorldX, s.probeY, 4, const [Color(0xFF4DD0E1)],
               minSpeed: 12, maxSpeed: 12, life: 0.25, size: 0.6);
         case RunEvent.newBest:
+          Haptics.newBest(); // A-29: medium double pulse
           newBestBannerAge = 0;
         case RunEvent.magnet:
         case RunEvent.floorBounce:
@@ -374,17 +375,40 @@ class ProbeGame extends FlameGame {
     }
   }
 
+  /// On-screen x (world units from the left edge) of the gold best line:
+  /// it reaches the probe's x exactly when the run's distance equals [best].
+  static double bestMarkerX(
+          {required int best,
+          required double renderScroll,
+          required double probeX}) =>
+      best / Tuning.metersPerUnit - renderScroll + probeX;
+
+  /// The best line's x for this frame in world units, or null when there is
+  /// no best or the line is off screen.
+  @visibleForTesting
+  double? get bestMarkerWorldX {
+    final s = _session;
+    if (s == null || bestDistance <= 0) return null;
+    final x = bestMarkerX(
+        best: bestDistance, renderScroll: s.renderScroll, probeX: s.probeX);
+    return x < -1 || x > _worldWidth + 1 ? null : x;
+  }
+
+  /// Where the "NEW BEST!" banner is centred, in logical pixels.
+  @visibleForTesting
+  Offset get newBestBannerAnchor => Offset(size.x / 2, size.y * 0.3);
+
   void _drawBestMarker(Canvas canvas, RunSession s) {
-    if (bestDistance <= 0) return;
-    final x = bestDistance / Tuning.metersPerUnit - s.renderScroll + s.probeX;
-    if (x < -1 || x > _worldWidth + 1) return;
+    final x = bestMarkerWorldX;
+    if (x == null) return;
     canvas.drawLine(Offset(x, 0), Offset(x, Tuning.worldHeight), _bestLine);
   }
 
   /// "BEST" label at the top of the marker line, drawn in screen space.
   void _drawBestLabel(Canvas canvas, RunSession s) {
     if (bestDistance <= 0) return;
-    final x = bestDistance / Tuning.metersPerUnit - s.renderScroll + s.probeX;
+    final x = bestMarkerX(
+        best: bestDistance, renderScroll: s.renderScroll, probeX: s.probeX);
     if (x < -10 || x > _worldWidth + 10) return;
     _bestLabelText.paint(canvas, 'BEST', Offset(x * _scale, viewPadding.top + 4),
         size.y * 0.022, gold,
@@ -396,7 +420,8 @@ class ProbeGame extends FlameGame {
     if (age == null) return;
     final scale = bannerScale(age);
     canvas.save();
-    canvas.translate(size.x / 2, size.y * 0.3);
+    final anchor = newBestBannerAnchor;
+    canvas.translate(anchor.dx, anchor.dy);
     canvas.scale(scale);
     _bannerText.paint(canvas, 'NEW BEST!', Offset.zero, size.y * 0.045, gold,
         center: true, opacity: bannerAlpha(age));

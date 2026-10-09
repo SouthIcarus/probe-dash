@@ -44,20 +44,38 @@ class GameController extends ChangeNotifier {
 
   bool _buying = false;
 
-  /// Buys one level (US-3). A buy that arrives while the previous one is
-  /// still in flight (fast double tap) is ignored, so one tap = one level
-  /// (A-22).
+  /// How long a buy waits for its save before later buys are allowed again.
+  /// A save normally takes milliseconds; this only matters if one never
+  /// finishes, which must not block every later buy.
+  static const Duration buySaveWaitLimit = Duration(seconds: 2);
+
+  /// Buys one level (US-3). The level and price change at once (before the
+  /// save). A buy that arrives while the previous one is still saving (fast
+  /// double tap) is ignored, so one tap = one level (A-22); the wait is
+  /// capped at [buySaveWaitLimit].
   Future<bool> buyUpgrade(UpgradeType type) async {
     if (_buying) return false;
     _buying = true;
     try {
       if (!progress.buyUpgrade(type)) return false;
       notifyListeners();
-      await store.save(progress);
+      await _waitAtMost(store.save(progress), buySaveWaitLimit);
       return true;
     } finally {
       _buying = false;
     }
+  }
+
+  static Future<void> _waitAtMost(Future<void> future, Duration limit) {
+    final done = Completer<void>();
+    final timer = Timer(limit, () {
+      if (!done.isCompleted) done.complete();
+    });
+    future.then((_) {}, onError: (Object _) {}).whenComplete(() {
+      timer.cancel();
+      if (!done.isCompleted) done.complete();
+    });
+    return done.future;
   }
 
   /// Called when leaving the results screen; shows an interstitial only

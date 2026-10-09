@@ -285,23 +285,27 @@ void main() {
 
     setUp(() => vibrations = []);
 
+    // Android haptics go through the app's own vibration channel (checks 1
+    // and 8 on the S26), not Flutter's HapticFeedback UI clicks.
     Future<void> listen(WidgetTester tester) async {
-      tester.binding.defaultBinaryMessenger
-          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
-        if (call.method == 'HapticFeedback.vibrate') {
-          vibrations.add(call.arguments);
-        }
-        return null;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          PlatformHapticsBackend.channel, (call) async {
+        if (call.method == 'vibrate') vibrations.add(call.arguments);
+        return true;
       });
       addTearDown(() => tester.binding.defaultBinaryMessenger
-          .setMockMethodCallHandler(SystemChannels.platform, null));
+          .setMockMethodCallHandler(PlatformHapticsBackend.channel, null));
     }
 
-    testWidgets('crash gives one heavy impact', (tester) async {
+    testWidgets('crash gives one strong buzz on the vibration channel',
+        (tester) async {
       await listen(tester);
       await pumpGame(tester, makeController());
       await crashNow(tester);
-      expect(vibrations, ['HapticFeedbackType.heavyImpact']);
+      final crash = Haptics.patterns[HapticKind.crash]!;
+      expect(vibrations, [
+        {'timings': crash.timings, 'amplitudes': crash.amplitudes},
+      ]);
     });
 
     testWidgets('the one switch turns haptics off', (tester) async {
@@ -376,7 +380,7 @@ void main() {
         (tester) async {
       final c = makeController(crystals: 120);
       await toResults(tester, c);
-      final shortcut = find.text('Upgrade ready: Crystal Value Lv1 – 100 ◆');
+      final shortcut = find.text('Upgrade: Crystal Value Lv1 – 100 ◆');
       expect(shortcut, findsOneWidget);
       await tester.tap(shortcut);
       await settle(tester);
@@ -386,7 +390,7 @@ void main() {
     testWidgets('nothing affordable: no shortcut', (tester) async {
       final c = makeController(crystals: 0);
       await toResults(tester, c);
-      expect(find.textContaining('Upgrade ready'), findsNothing);
+      expect(find.textContaining('Upgrade:'), findsNothing);
     });
   });
 

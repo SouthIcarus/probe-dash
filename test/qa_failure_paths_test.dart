@@ -226,7 +226,7 @@ void main() {
       await crashNow(tester);
       await waitForOverlay(tester);
       expect(c.progress.crystals, 100);
-      expect(find.text('Upgrade ready: Crystal Value Lv1 – 100 ◆'),
+      expect(find.text('Upgrade: Crystal Value Lv1 – 100 ◆'),
           findsOneWidget);
     });
 
@@ -236,7 +236,7 @@ void main() {
       gameOf(tester).session!.reviveUsed = true;
       await crashNow(tester);
       await waitForOverlay(tester);
-      expect(find.textContaining('Upgrade ready'), findsNothing);
+      expect(find.textContaining('Upgrade:'), findsNothing);
     });
 
     test('pure helper: equal is affordable, one short is not', () {
@@ -247,19 +247,20 @@ void main() {
   });
 
   group('QA haptics per event', () {
-    testWidgets('shield absorb: one medium impact, no heavy', (tester) async {
-      final vib = recordPlatform(tester, 'HapticFeedback.vibrate');
+    testWidgets('shield absorb: one shield haptic, no crash haptic',
+        (tester) async {
+      final vib = recordHaptics();
       final c = makeController();
       c.progress.upgrades[UpgradeType.shield] = 1;
       await pumpGame(tester, c);
       await crashNow(tester);
       expect(gameOf(tester).phase.value, RunPhase.playing); // absorbed
-      expect(vib, ['HapticFeedbackType.mediumImpact']);
+      expect(vib, [HapticKind.shieldHit]);
     });
 
-    testWidgets('near miss: light impact, max one per 300 ms',
+    testWidgets('near miss: light tick, max one per 300 ms',
         (tester) async {
-      final vib = recordPlatform(tester, 'HapticFeedback.vibrate');
+      final vib = recordHaptics();
       await pumpGame(tester, makeController());
       final g = gameOf(tester);
       g.tapInput();
@@ -268,20 +269,17 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
       g.session!.events.add(RunEvent.nearMiss); // ~16 ms later
       await tester.pump(const Duration(milliseconds: 16));
-      expect(vib, ['HapticFeedbackType.lightImpact']);
+      expect(vib, [HapticKind.nearMiss]);
 
       await tester.pump(const Duration(milliseconds: 320));
       g.session!.events.add(RunEvent.nearMiss);
       await tester.pump(const Duration(milliseconds: 16));
-      expect(vib, [
-        'HapticFeedbackType.lightImpact',
-        'HapticFeedbackType.lightImpact',
-      ]);
+      expect(vib, [HapticKind.nearMiss, HapticKind.nearMiss]);
     });
 
     testWidgets('switch off: no haptic for crash, shield or near miss',
         (tester) async {
-      final vib = recordPlatform(tester, 'HapticFeedback.vibrate');
+      final vib = recordHaptics();
       Haptics.enabled = false;
       addTearDown(() => Haptics.enabled = true);
       final c = makeController();
@@ -301,7 +299,7 @@ void main() {
     });
 
     testWidgets('no haptic on thrust taps or crystals', (tester) async {
-      final vib = recordPlatform(tester, 'HapticFeedback.vibrate');
+      final vib = recordHaptics();
       await pumpGame(tester, makeController());
       final g = gameOf(tester);
       for (var i = 0; i < 5; i++) {

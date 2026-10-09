@@ -415,14 +415,19 @@ class _ResultsOverlay extends StatelessWidget {
       ),
       if (upgradeOffer case final offer?) ...[
         const SizedBox(height: 8),
+        // One line on every phone: the short label fits 360 dp at normal
+        // font size, and scales down instead of wrapping when it doesn't.
         OutlinedButton.icon(
           onPressed: busy ? null : onUpgrades,
           icon: const Icon(Icons.upgrade),
-          label: Text('Upgrade ready: ${offer.info.name} '
-              'Lv${offer.nextLevel} – ${offer.cost} ◆'),
+          label: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(offer.label, maxLines: 1, softWrap: false),
+          ),
         ),
       ],
-      Row(mainAxisSize: MainAxisSize.min, children: [
+      // Wraps onto two lines at large font sizes instead of overflowing.
+      Wrap(alignment: WrapAlignment.center, children: [
         TextButton(onPressed: busy ? null : onUpgrades, child: const Text('Upgrades')),
         TextButton(onPressed: busy ? null : onHome, child: const Text('Home')),
       ]),
@@ -430,8 +435,14 @@ class _ResultsOverlay extends StatelessWidget {
   }
 }
 
+/// The revive and results card. Font-scale safe (A-27): text is clamped to
+/// 1.3× and the card scrolls when it is taller than the screen, so no button
+/// ends up outside the card where it would be drawn but not tappable.
 class _Panel extends StatelessWidget {
   const _Panel({required this.children});
+
+  static const double maxTextScale = 1.3;
+  static const double maxWidth = 420;
 
   final List<Widget> children;
 
@@ -441,14 +452,25 @@ class _Panel extends StatelessWidget {
       color: const Color(0xAA000000),
       alignment: Alignment.center,
       child: SafeArea(
-        child: Container(
-          margin: const EdgeInsets.all(24),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: const Color(0xFF151B33),
-            borderRadius: BorderRadius.circular(20),
+        child: MediaQuery.withClampedTextScaling(
+          maxScaleFactor: maxTextScale,
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: maxWidth),
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF151B33),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Column(
+                      mainAxisSize: MainAxisSize.min, children: children),
+                ),
+              ),
+            ),
           ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: children),
         ),
       ),
     );

@@ -5,6 +5,18 @@ void main() {
   group('A-18 cheapest affordable upgrade', () {
     const none = <UpgradeType, int>{};
 
+    test('shortcut label is short: "Upgrade: <name> Lv<n> – <cost> ◆"', () {
+      final o = Upgrades.cheapestAffordable(none, 1000)!;
+      expect(o.label, 'Upgrade: Crystal Value Lv1 – 100 ◆');
+      // Longest possible label (longest name, Lv10, 4-digit cost) stays
+      // within 36 characters, so it fits one line at 360 dp.
+      final longest = UpgradeOffer(
+          Upgrades.all.reduce((a, b) => a.name.length >= b.name.length ? a : b),
+          Upgrades.maxLevel,
+          9999);
+      expect(longest.label.length, lessThanOrEqualTo(36));
+    });
+
     test('nothing affordable: null', () {
       expect(Upgrades.cheapestAffordable(none, 99), isNull);
     });
