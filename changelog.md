@@ -479,3 +479,118 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Files:** `lib/game/probe_game.dart`, `test/phone_size_test.dart`
 - **Refs:** AJ_PROBE `qa/pr3-device-checklist.md` check 9; `ux-review.md`
   A-04; #0018
+
+## #0023 — 2026-10-09 — CHANGE — Pure interstitial rule for spec v2 (plan step A-1)
+- **What:** New `lib/logic/ad_rules.dart` with `InterstitialRule.decide`,
+  the spec v2 §3.3 decision in its order: (a) `remove_ads`, (b) lifetime
+  runs > 3 and a multiple of 3, (c) 90 s gap, (d) rewarded ad this run →
+  `skippedRewarded`, (e) loaded and younger than 1 h → else `notLoaded`;
+  all met → `show`. A `lastInterstitialAt` in the future (clock moved
+  back) counts as absent (AD-9; fixes plan bug A3, which blocked the ad).
+  `AdPolicy` is removed from `progress.dart` (a class inside a file, so no
+  archive), and its 4 tests are replaced by `test/logic/ad_rules_test.dart`
+  (26 tests covering the same cases plus the new ones). The old
+  leave-Results call in `GameController.maybeShowInterstitial` uses the
+  new rule until plan step A-3 removes it.
+- **Why:** Spec v2 (approved at G1, OD-3 to OD-7 yes) moves the
+  interstitial to Results-open and adds AD-5 to AD-9; the tech lead's plan
+  puts the rule in pure Dart so `flutter test` covers every branch.
+- **Agent:** engineer
+- **Files:** `lib/logic/ad_rules.dart` (new), `lib/logic/progress.dart`,
+  `lib/app/game_controller.dart`, `test/logic/ad_rules_test.dart` (new),
+  `test/logic/progress_test.dart`
+- **Refs:** spec v2 AD-5 to AD-9, §3.3; AJ_PROBE
+  `tech/plan-spec-v2-ads-analytics.md` step A-1, bug A3
+
+## #0024 — 2026-10-09 — CHANGE — Ad service reports how each ad ended (plan step A-2)
+- **What:** `AdService.showRewarded()` now returns `RewardedOutcome`
+  (`earned`, `closedEarly`, `failedToShow`, `notLoaded`) instead of a
+  bool, so "closed early" (shown, counts for AD-6) is no longer the same
+  as "failed to show" (not shown). The reward is still granted only for
+  `earned` (US-1). The interstitial gets a monotonic load `Stopwatch` and
+  `interstitialAge` (AD-7 expiry), `requestInterstitialLoad()` and
+  `discardStaleInterstitial()`, and a `_loadingInterstitial` flag so two
+  loads never run at once. `showInterstitial` takes `onShown`,
+  `onFailed` and `onDismissed` callbacks and returns at once; the ad is
+  disposed only on dismiss or failure, because the SDK can't cancel a
+  show already requested and a disposed ad's later callbacks are dropped.
+  Callers (`GameController`, `GameScreen`, `FakeAds`, the QA `HeldAds`
+  fake) are moved to the new types; the interim leave-Results call now
+  counts the ad when it appears. No behaviour change for players yet.
+- **Why:** Plan bugs A5 and A6: AD-6 needs "shown" vs "failed" and AD-7
+  needs the ad's age; AD-9 needs the moment the ad appears.
+- **Agent:** engineer
+- **Files:** `lib/services/ad_service.dart`, `lib/app/game_controller.dart`,
+  `lib/ui/game_screen.dart`, `test/support/fakes.dart`,
+  `test/qa_failure_paths_test.dart`
+- **Refs:** spec v2 AD-6, AD-7, AD-9, US-1; plan step A-2, bugs A5, A6
+
+## #0025 — 2026-10-09 — CHANGE — Interstitial at Results-open in the controller (plan step A-3)
+- **What:** New `GameController.openResults(result)`: applies the run
+  (`stats.runs += 1`), queues its save, runs `InterstitialRule.decide` and
+  returns `ResultsOpen` (`newBest`, `decision`, `locked`, `unlocked`). On
+  `show` the ad is requested only after the run save finishes (AD-5);
+  `unlocked` completes on dismiss, on failure, or 2 s after Results-open
+  if the ad hasn't appeared (AD-8); it stays locked while an ad that
+  appeared in time is on screen. `lastInterstitialAt` and
+  `interstitialsShown` are set and saved in `onShown` (AD-9; fixes bug
+  A2). `notLoaded` requests a load (or discards an ad older than 1 h)
+  and never shows it later in that run cycle (AD-7). New
+  `showReviveAd()` marks the run on `earned` or `closedEarly`, not on
+  `failedToShow` (AD-6); `runStarted()` clears the mark; a token revive
+  never sets it. New `clock` constructor parameter for tests.
+  **Late ads (decision S2):** the SDK can't cancel a requested show, so
+  the design keeps it harmless and provable: (1) the show is requested
+  only while the lock is on; if the save takes the whole 2 s the ad is
+  not requested at all; (2) a late `onShown` counts and saves like any
+  shown ad (AD-9), is tallied in `lateInterstitials`, and never re-locks
+  or changes the screen (`unlocked` completes once); (3) a new
+  `interstitialOnScreen` listenable is true while any interstitial is up,
+  which the game screen uses (step A-4) to freeze the engine, so a late
+  ad can't cover a moving run. `completeRun` and `maybeShowInterstitial`
+  stay until A-4 moves the screen over. `FakeAds` gets a scriptable
+  interstitial (`InterstitialScript`: appears after, fails, dismiss
+  after; manual appear/dismiss/fail), counters and a shared order log;
+  `InstantStore` records each save as written (`onDisk` = what an app
+  kill leaves); `makeController` takes runs, remove_ads, last shown and
+  a clock. New `test/interstitial_controller_test.dart` (21 tests).
+- **Why:** Spec v2 AD-5 to AD-9 and US-5 failure paths; plan step A-3
+  and risk R1 / spec issue S2 (Andy asked for a provable late-ad design).
+- **Agent:** engineer
+- **Files:** `lib/app/game_controller.dart`, `test/support/fakes.dart`,
+  `test/interstitial_controller_test.dart` (new)
+- **Refs:** spec v2 AD-5 to AD-9, US-5, §3.3, §7; plan step A-3, bugs A2,
+  R1, S2; #0023, #0024
+
+## #0026 — 2026-10-09 — CHANGE — Results lock and no ad on Play again / Home (plan step A-4)
+- **What:** `GameScreen` calls `openResults` when Results opens and
+  locks Results until `unlocked` (AD-8): Play again, Home, Upgrades, the
+  upgrade shortcut and 2× show as disabled, and the back gesture is
+  ignored (`PopScope.canPop` is false while locked; fixes bug A4). After
+  the lock, back goes Home with no ad. `_leaveResults` no longer calls
+  the interstitial and is synchronous (fixes bug A1: Play again and Home
+  showed the ad; GAME-4). The revive button goes through
+  `GameController.showReviveAd` (AD-6); each new run calls `runStarted`.
+  `GameController.completeRun` and `maybeShowInterstitial` are removed
+  (no callers left). **Late-ad guard (decision S2):** while
+  `interstitialOnScreen` is true the screen pauses the Flame engine and
+  ignores taps (the revive countdown also pauses), then resumes it when
+  the ad closes, the same as returning from the background. So a late ad
+  that the SDK shows after Play again can't cover a moving run: no
+  physics, crash or score happen under it; it is counted (AD-9); the
+  screen doesn't change. New `test/interstitial_flow_test.dart` (18
+  widget tests): lock, 5 taps and back ignored, back inside the ad lands
+  on Results, one tap to Ready in < 1 s, 2 s timeout, failure, Play
+  again / Home / back never show an ad (runs 6 to 12 and the old A1
+  case), revive watched / closed early / failed, not loaded, remove_ads,
+  late ad during play / after Home / on Results, app kill during the ad.
+  Mutation-checked: dropping the lock, the back block, the freeze, or
+  adding an ad on leave each fails at least one test.
+- **Why:** Spec v2 AD-1, AD-5 to AD-9, GAME-4, §8 ResultsScreen states,
+  US-5; plan step A-4; Andy's S2 instruction that a late ad must be
+  harmless and provably never over gameplay.
+- **Agent:** engineer
+- **Files:** `lib/ui/game_screen.dart`, `lib/app/game_controller.dart`,
+  `test/interstitial_flow_test.dart` (new)
+- **Refs:** spec v2 AD-1, AD-5 to AD-9, GAME-4, US-5, §7, §8; plan step
+  A-4, bugs A1, A4, R1, S2; #0025

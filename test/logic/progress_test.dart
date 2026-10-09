@@ -101,32 +101,4 @@ void main() {
       expect(junk.removeAds, isFalse);
     });
   });
-
-  group('AD-1 interstitial policy', () {
-    final now = DateTime.utc(2026, 10, 7, 12);
-
-    bool show(int runs, {bool removeAds = false, DateTime? last}) =>
-        AdPolicy.shouldShowInterstitial(
-            runs: runs, removeAds: removeAds, now: now, lastShownAt: last);
-
-    test('never in the first 3 runs', () {
-      expect([1, 2, 3].any(show), isFalse);
-    });
-
-    test('every 3rd run after that', () {
-      expect(show(4), isFalse);
-      expect(show(5), isFalse);
-      expect(show(6), isTrue);
-      expect(show(9), isTrue);
-    });
-
-    test('at least 90 seconds apart', () {
-      expect(show(6, last: now.subtract(const Duration(seconds: 60))), isFalse);
-      expect(show(6, last: now.subtract(const Duration(seconds: 91))), isTrue);
-    });
-
-    test('never with Remove Ads', () {
-      expect(show(6, removeAds: true), isFalse);
-    });
-  });
 }
