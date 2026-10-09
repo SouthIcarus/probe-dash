@@ -479,3 +479,25 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Files:** `lib/game/probe_game.dart`, `test/phone_size_test.dart`
 - **Refs:** AJ_PROBE `qa/pr3-device-checklist.md` check 9; `ux-review.md`
   A-04; #0018
+
+## #0023 — 2026-10-09 — CHANGE — Pure interstitial rule for spec v2 (plan step A-1)
+- **What:** New `lib/logic/ad_rules.dart` with `InterstitialRule.decide`,
+  the spec v2 §3.3 decision in its order: (a) `remove_ads`, (b) lifetime
+  runs > 3 and a multiple of 3, (c) 90 s gap, (d) rewarded ad this run →
+  `skippedRewarded`, (e) loaded and younger than 1 h → else `notLoaded`;
+  all met → `show`. A `lastInterstitialAt` in the future (clock moved
+  back) counts as absent (AD-9; fixes plan bug A3, which blocked the ad).
+  `AdPolicy` is removed from `progress.dart` (a class inside a file, so no
+  archive), and its 4 tests are replaced by `test/logic/ad_rules_test.dart`
+  (26 tests covering the same cases plus the new ones). The old
+  leave-Results call in `GameController.maybeShowInterstitial` uses the
+  new rule until plan step A-3 removes it.
+- **Why:** Spec v2 (approved at G1, OD-3 to OD-7 yes) moves the
+  interstitial to Results-open and adds AD-5 to AD-9; the tech lead's plan
+  puts the rule in pure Dart so `flutter test` covers every branch.
+- **Agent:** engineer
+- **Files:** `lib/logic/ad_rules.dart` (new), `lib/logic/progress.dart`,
+  `lib/app/game_controller.dart`, `test/logic/ad_rules_test.dart` (new),
+  `test/logic/progress_test.dart`
+- **Refs:** spec v2 AD-5 to AD-9, §3.3; AJ_PROBE
+  `tech/plan-spec-v2-ads-analytics.md` step A-1, bug A3

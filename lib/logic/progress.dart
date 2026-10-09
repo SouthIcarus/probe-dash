@@ -94,29 +94,3 @@ class Progress {
     );
   }
 }
-
-/// Interstitial rules from spec §3.2: every 3rd run, never in the first 3
-/// runs, at least 90 seconds apart, never with Remove Ads.
-class AdPolicy {
-  AdPolicy._();
-
-  static const int everyNthRun = 3;
-  static const int graceRuns = 3;
-  static const Duration minGap = Duration(seconds: 90);
-
-  /// [runs] is the number of completed runs, including the one just ended.
-  static bool shouldShowInterstitial({
-    required int runs,
-    required bool removeAds,
-    required DateTime now,
-    DateTime? lastShownAt,
-  }) {
-    if (removeAds) return false;
-    if (runs <= graceRuns) return false;
-    if (runs % everyNthRun != 0) return false;
-    if (lastShownAt != null && now.difference(lastShownAt) < minGap) {
-      return false;
-    }
-    return true;
-  }
-}

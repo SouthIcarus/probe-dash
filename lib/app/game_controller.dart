@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../logic/ad_rules.dart';
 import '../logic/progress.dart';
 import '../logic/run_session.dart';
 import '../logic/upgrades.dart';
@@ -82,12 +83,18 @@ class GameController extends ChangeNotifier {
   /// when the spec's ad rules allow it (AD-1).
   Future<void> maybeShowInterstitial() async {
     final now = DateTime.now().toUtc();
-    if (!AdPolicy.shouldShowInterstitial(
-      runs: progress.runs,
-      removeAds: progress.removeAds,
-      now: now,
-      lastShownAt: progress.lastInterstitialAt,
-    )) {
+    // Interim (removed with this method in plan step A-3): the old
+    // leave-Results trigger, now through the pure rule. The ad service still
+    // decides whether an ad is loaded here.
+    if (InterstitialRule.decide(
+          removeAds: progress.removeAds,
+          runs: progress.runs,
+          now: now,
+          lastShownAt: progress.lastInterstitialAt,
+          rewardedShownThisRun: false,
+          loadedAdAge: Duration.zero,
+        ) !=
+        InterstitialDecision.show) {
       return;
     }
     if (await ads.showInterstitial()) {
