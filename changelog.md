@@ -524,3 +524,40 @@ new entry that references the old one instead. Newest entries at the bottom.
   `lib/ui/game_screen.dart`, `test/support/fakes.dart`,
   `test/qa_failure_paths_test.dart`
 - **Refs:** spec v2 AD-6, AD-7, AD-9, US-1; plan step A-2, bugs A5, A6
+
+## #0025 — 2026-10-09 — CHANGE — Interstitial at Results-open in the controller (plan step A-3)
+- **What:** New `GameController.openResults(result)`: applies the run
+  (`stats.runs += 1`), queues its save, runs `InterstitialRule.decide` and
+  returns `ResultsOpen` (`newBest`, `decision`, `locked`, `unlocked`). On
+  `show` the ad is requested only after the run save finishes (AD-5);
+  `unlocked` completes on dismiss, on failure, or 2 s after Results-open
+  if the ad hasn't appeared (AD-8); it stays locked while an ad that
+  appeared in time is on screen. `lastInterstitialAt` and
+  `interstitialsShown` are set and saved in `onShown` (AD-9; fixes bug
+  A2). `notLoaded` requests a load (or discards an ad older than 1 h)
+  and never shows it later in that run cycle (AD-7). New
+  `showReviveAd()` marks the run on `earned` or `closedEarly`, not on
+  `failedToShow` (AD-6); `runStarted()` clears the mark; a token revive
+  never sets it. New `clock` constructor parameter for tests.
+  **Late ads (decision S2):** the SDK can't cancel a requested show, so
+  the design keeps it harmless and provable: (1) the show is requested
+  only while the lock is on; if the save takes the whole 2 s the ad is
+  not requested at all; (2) a late `onShown` counts and saves like any
+  shown ad (AD-9), is tallied in `lateInterstitials`, and never re-locks
+  or changes the screen (`unlocked` completes once); (3) a new
+  `interstitialOnScreen` listenable is true while any interstitial is up,
+  which the game screen uses (step A-4) to freeze the engine, so a late
+  ad can't cover a moving run. `completeRun` and `maybeShowInterstitial`
+  stay until A-4 moves the screen over. `FakeAds` gets a scriptable
+  interstitial (`InterstitialScript`: appears after, fails, dismiss
+  after; manual appear/dismiss/fail), counters and a shared order log;
+  `InstantStore` records each save as written (`onDisk` = what an app
+  kill leaves); `makeController` takes runs, remove_ads, last shown and
+  a clock. New `test/interstitial_controller_test.dart` (21 tests).
+- **Why:** Spec v2 AD-5 to AD-9 and US-5 failure paths; plan step A-3
+  and risk R1 / spec issue S2 (Andy asked for a provable late-ad design).
+- **Agent:** engineer
+- **Files:** `lib/app/game_controller.dart`, `test/support/fakes.dart`,
+  `test/interstitial_controller_test.dart` (new)
+- **Refs:** spec v2 AD-5 to AD-9, US-5, §3.3, §7; plan step A-3, bugs A2,
+  R1, S2; #0023, #0024
