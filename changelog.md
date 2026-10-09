@@ -415,3 +415,67 @@ new entry that references the old one instead. Newest entries at the bottom.
   `test/qa_failure_paths_test.dart`
 - **Refs:** AJ_PROBE `qa/pr3-device-checklist.md` checks 1, 8;
   `ux-review.md` A-29; spec FEEL-07; #0019
+
+## #0021 — 2026-10-09 — CHANGE — Upgrade shortcut on one line, font-safe results card, buys never blocked by a stuck save (S26 check 13; A-18, A-22, A-27)
+- **What:** (1) The results shortcut label is now
+  "Upgrade: Crystal Value Lv1 – 100 ◆" (was "Upgrade ready: …"), on one
+  line: it fits 360 dp at normal font size and scales down instead of
+  wrapping when it doesn't (`UpgradeOffer.label`, max 36 characters,
+  unit-tested). (2) The revive / results card (`_Panel`) clamps text to
+  1.3× and scrolls when taller than the screen (A-27); outer margin
+  24 → 16 dp and card padding 24 → 20 dp; the "Upgrades · Home" row wraps
+  instead of overflowing. (3) `GameController.buyUpgrade` still ignores a
+  buy while the previous one is saving (A-22), but waits at most 2 s
+  (`buySaveWaitLimit`) for that save, so a save that never finishes can't
+  block every later buy. New `test/phone_size_test.dart` runs at S26 sizes
+  (1080 × 2340 px at DPR 2.63 → 411 × 891 dp and DPR 3 → 360 × 780 dp,
+  84 px camera inset): shortcut on one line, fully on screen, hittable
+  and opens Upgrades; "Upgrades" button opens Upgrades and back returns;
+  every Buy button hittable and a fast double tap buys one level; 2× font
+  has no overflow and buttons stay reachable; the A-27 800 × 360 at 2×
+  case; and a stuck save. Existing shortcut tests updated to the new label.
+- **Why:** Owner's S26 check 13: "cannot click upgrade". **Not
+  reproduced.** At S26 sizes the old shortcut was on screen, hittable and
+  opened Upgrades, and Buy worked (these tests pass against the old
+  layout at 1× and 1.3× font). Andy's web build of main at 412 × 915 agreed
+  (shortcut opened Upgrades; double tap bought one level) and saw the
+  label wrap so "◆" sat alone on a second line. Ruled out by reading the
+  code: `SaveStore.save` catches every error, so a save only hangs if
+  file IO itself hangs (now capped anyway); `immersiveSticky` passes
+  taps through to the app (only edge swipes reveal the bars); the 400 ms
+  entry lock and tile lock clear on timers. Found and fixed: at large
+  system font (2×) the old card overflowed, leaving the shortcut and
+  "Upgrades / Home" drawn outside the card where taps don't reach them
+  (3 of the new tests fail against the old layout), plus the wrapped
+  label Andy reported.
+- **Agent:** engineer
+- **Files:** `lib/ui/game_screen.dart`, `lib/logic/upgrades.dart`,
+  `lib/app/game_controller.dart`, `test/phone_size_test.dart` (new),
+  `test/logic/upgrades_test.dart`, `test/game_screen_test.dart`,
+  `test/qa_failure_paths_test.dart`
+- **Refs:** AJ_PROBE `qa/pr3-device-checklist.md` check 13 (its expected
+  label text changes); `ux-review.md` A-18, A-22, A-27; #0017
+
+## #0022 — 2026-10-09 — NOTE — S26 check 9 "no new best": logic verified, not reproduced
+- **What:** Verified best / NEW BEST end to end at S26 sizes in
+  `test/phone_size_test.dart`: first run ever (best 0) gives no banner or
+  haptic by design and results say "NEW BEST!"; PLAY AGAIN on the same
+  game carries the new best ("BEST 60 m"), the gold line is on screen
+  ahead of the probe 10 m before it, passing it fires one `newBest`
+  (banner at full opacity, centred inside the screen below the HUD; HUD
+  line "NEW BEST"; one new-best haptic) and results say "NEW BEST!"; Home
+  → PLAY starts a game with the saved best; a run equal to the best is
+  not a new best in the run or on results (both use the floored meters).
+  Added small test hooks in `ProbeGame` (`bestMarkerX`,
+  `bestMarkerWorldX`, `newBestBannerAnchor`) that the drawing code now
+  uses, so the tests check the same numbers that are drawn.
+- **Why:** Owner reported check 9 "no new best". No code fault found;
+  Andy's web build at 412 × 915 also showed the HUD switch and the banner.
+  Likely test condition: the best carried over from earlier builds
+  (installing over keeps the save) was higher than the runs played, or
+  the first run after a fresh install (best 0, no banner by design).
+  Owner to recheck with Home → "Best: N m" noted first and a run past N.
+- **Agent:** engineer
+- **Files:** `lib/game/probe_game.dart`, `test/phone_size_test.dart`
+- **Refs:** AJ_PROBE `qa/pr3-device-checklist.md` check 9; `ux-review.md`
+  A-04; #0018

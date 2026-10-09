@@ -226,7 +226,7 @@ void main() {
       await crashNow(tester);
       await waitForOverlay(tester);
       expect(c.progress.crystals, 100);
-      expect(find.text('Upgrade ready: Crystal Value Lv1 – 100 ◆'),
+      expect(find.text('Upgrade: Crystal Value Lv1 – 100 ◆'),
           findsOneWidget);
     });
 
@@ -236,7 +236,7 @@ void main() {
       gameOf(tester).session!.reviveUsed = true;
       await crashNow(tester);
       await waitForOverlay(tester);
-      expect(find.textContaining('Upgrade ready'), findsNothing);
+      expect(find.textContaining('Upgrade:'), findsNothing);
     });
 
     test('pure helper: equal is affordable, one short is not', () {

@@ -380,7 +380,7 @@ void main() {
         (tester) async {
       final c = makeController(crystals: 120);
       await toResults(tester, c);
-      final shortcut = find.text('Upgrade ready: Crystal Value Lv1 – 100 ◆');
+      final shortcut = find.text('Upgrade: Crystal Value Lv1 – 100 ◆');
       expect(shortcut, findsOneWidget);
       await tester.tap(shortcut);
       await settle(tester);
@@ -390,7 +390,7 @@ void main() {
     testWidgets('nothing affordable: no shortcut', (tester) async {
       final c = makeController(crystals: 0);
       await toResults(tester, c);
-      expect(find.textContaining('Upgrade ready'), findsNothing);
+      expect(find.textContaining('Upgrade:'), findsNothing);
     });
   });
 

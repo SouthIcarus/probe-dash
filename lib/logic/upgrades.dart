@@ -21,6 +21,10 @@ class UpgradeOffer {
   final UpgradeInfo info;
   final int nextLevel;
   final int cost;
+
+  /// The results-screen shortcut label (A-18), short enough for one line
+  /// on a 360 dp wide phone: "Upgrade: Crystal Value Lv1 – 100 ◆".
+  String get label => 'Upgrade: ${info.name} Lv$nextLevel – $cost ◆';
 }
 
 class Upgrades {
