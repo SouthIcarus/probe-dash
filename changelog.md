@@ -886,3 +886,13 @@ new entry that references the old one instead. Newest entries at the bottom.
   (#0030 said the first build would confirm it). The guard must flag
   real IDs, not the SDK's placeholder.
 - **Files:** .github/android-permissions.txt, .github/scripts/check_ad_ids.py
+
+## #0035 — 2026-10-09 — CHANGE — Extra agent safety rules in .claude/settings.json (SEC-16)
+- **What:** Added 15 deny rules for Claude sessions in this repo: no
+  `git push --force-with-lease`, `--delete` or `+` refspecs, no
+  `git reset --hard`, `git branch -D` or `git tag`, no `gh release`,
+  `gh secret` or `gh pr merge`, no `printenv`/`env`, and no reading
+  `*.jks`, `*.keystore`, `key.properties` or `google-services.json`.
+- **Why:** The owner approved security finding SEC-16 (AJ_PROBE #0073).
+  These are speed bumps; GitHub rulesets remain the real control.
+- **Files:** .claude/settings.json
