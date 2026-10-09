@@ -1,8 +1,15 @@
 name: Build
 
-# Every push and PR: analyze + test. Every push to main also builds an
-# Android APK and publishes it as a GitHub pre-release, so the owner can
-# download and install the prototype straight from a phone.
+# Every push and PR: analyze + test, then build the dev-flavor APK
+# ("Probe Dash Dev", com.southicarus.probe_dash.dev) and run the APK guards
+# (ad IDs, permissions, target SDK, 16 KB). Every push to main also
+# publishes the APK as a `dev-<run>` GitHub pre-release (it replaces the
+# old `proto-<run>` releases), so the owner can install it from a phone.
+#
+# Security (security review §4): every action is pinned to a commit SHA;
+# checkouts keep no token; build jobs are read-only; only the publish job
+# can write, it runs only on push to main and runs no build code (CI-3 to
+# CI-5); the debug-key cache is used only on push to main (CI-8, SEC-9).
 
 on:
   push:
@@ -20,13 +27,15 @@ jobs:
     name: Analyze and test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
-      - run: flutter pub get
+      - run: flutter pub get --enforce-lockfile
       - run: flutter analyze
       - run: flutter test
 
@@ -35,50 +44,83 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     permissions:
-      contents: write # to publish the pre-release on main
+      contents: read
+    env:
+      APP_ID: com.southicarus.probe_dash.dev
+      APK_NAME: probe-dash-dev-${{ github.run_number }}.apk
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: 17
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
 
-      # Prototype builds are signed with a debug key. Keeping the same key
-      # between builds lets a new APK install over the old one without
+      # dev builds are signed with a debug key. Keeping the same key between
+      # main builds lets a new dev APK install over the old one without
       # losing progress. (GitHub drops caches unused for 7 days; then the
-      # next APK needs an uninstall first.) Real release signing comes
-      # before the Play Store upload.
-      - name: Reuse prototype signing key
-        uses: actions/cache@v4
+      # next APK needs an uninstall first.) Only pushes to main restore or
+      # save it; PR builds get a throwaway key that Gradle generates
+      # (SEC-9, CI-8). Play builds never use this key.
+      - name: Reuse dev signing key (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.android/debug.keystore
           key: prototype-debug-keystore-v1
 
-      - name: Build APK
-        run: flutter build apk --release --build-number=${{ github.run_number }}
+      - run: flutter pub get --enforce-lockfile
+
+      - name: Build dev APK
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: >-
+          flutter build apk --release --flavor dev
+          --dart-define-from-file=config/dev.json
+          --build-number="$BUILD_NUMBER"
 
       - name: Rename APK
-        run: mv build/app/outputs/flutter-apk/app-release.apk "probe-dash-proto-${{ github.run_number }}.apk"
+        run: mv build/app/outputs/flutter-apk/app-dev-release.apk "$APK_NAME"
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: probe-dash-proto-${{ github.run_number }}
-          path: probe-dash-proto-${{ github.run_number }}.apk
+      - name: APK guards (package, target SDK, permissions, 16 KB, test ad IDs only)
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: bash .github/scripts/check-apk.sh "$APK_NAME" "$APP_ID" test "$BUILD_NUMBER"
 
-      - name: Publish pre-release (main only)
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-        uses: softprops/action-gh-release@v2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          tag_name: proto-${{ github.run_number }}
+          name: probe-dash-dev-${{ github.run_number }}
+          path: ${{ env.APK_NAME }}
+          if-no-files-found: error
+
+  publish:
+    name: Publish dev pre-release
+    needs: apk
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the dev-N release; this job runs no build code
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: probe-dash-dev-${{ github.run_number }}
+
+      - name: Publish pre-release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: dev-${{ github.run_number }}
           target_commitish: ${{ github.sha }}
-          name: Prototype build ${{ github.run_number }}
+          name: Dev build ${{ github.run_number }}
           prerelease: true
           body: |
-            Prototype APK for testing on Android (7.0+). Test ads only.
+            Dev APK for testing on Android (7.0+). Test ads only, no analytics.
+            Installs as **"Probe Dash Dev"** (com.southicarus.probe_dash.dev), a separate app next to any old "Probe Dash" prototype (proto-N); progress does not carry over.
             Commit: ${{ github.sha }}
-          files: probe-dash-proto-${{ github.run_number }}.apk
+          files: probe-dash-dev-${{ github.run_number }}.apk
+          fail_on_unmatched_files: true

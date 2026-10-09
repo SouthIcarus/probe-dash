@@ -738,3 +738,55 @@ new entry that references the old one instead. Newest entries at the bottom.
   `.github/workflows/repo-rules.yml`
 - **Refs:** SEC-3, SEC-6, SEC-13, SEC-20, SEC-21; CI-4, CI-5, CI-6,
   CI-10; REL-2, REL-3; ENV-4, ENV-12; #0027, #0029
+
+## #0031 — 2026-10-09 — CHANGE — Build and Launch test move to the dev/beta flavors; dev-N pre-releases; CI hardening (PR F, step 4)
+- **What:**
+  - **`build.yml`** (workflow name `Build`; job names "Analyze and
+    test" and "Build APK" unchanged): builds `flutter build apk --release
+    --flavor dev --dart-define-from-file=config/dev.json` on every push
+    and PR, then runs the new `.github/scripts/check-apk.sh` (package
+    `com.southicarus.probe_dash.dev`, targetSdk ≥ 36, versionCode = run
+    number, permission allow-list, 16 KB, test ad IDs only). Publishing
+    moved to a new job **"Publish dev pre-release"**: only on push to
+    `main`, `contents: write`, no checkout or build steps, it downloads
+    the artifact and creates release **`dev-<run>`** ("Dev build N",
+    `probe-dash-dev-N.apk`). It replaces `proto-<run>`; old `proto-*`
+    releases are untouched. The build jobs are `contents: read`. The
+    debug-key cache (same key as before, `prototype-debug-keystore-v1`)
+    is restored and saved only on push to `main`; PR builds sign with a
+    throwaway key Gradle generates.
+  - **`launch-test.yml`** (name `Launch test`): a matrix of dev on API
+    30/35/36 (check names unchanged: "Opens without crashing (Android
+    API N)") plus **beta on API 36** ("Opens without crashing (beta,
+    Android API 36)", `com.southicarus.probe_dash`). Builds use the
+    flavor's config with `--dart-define=ANALYTICS=off` (a `--dart-define`
+    wins over the file, checked in the Flutter 3.47.6 tool source).
+  - All workflows: every action pinned to a full commit SHA with a
+    version comment (latest release of each, all on the Node 24
+    runtime), `persist-credentials: false` on every checkout, `flutter
+    pub get --enforce-lockfile` before analyze/test/build.
+  - New **`.github/dependabot.yml`**: weekly `github-actions` (grouped)
+    and `pub` updates.
+- **Owner note:** the next `main` build publishes **`dev-N`**, not
+  `proto-N`. It installs as a **new app, "Probe Dash Dev"**, next to the
+  old prototype; prototype progress does not carry over. Required-check
+  names: the existing ones are kept; the new checks are "Secrets guard
+  (no real AdMob IDs or signing files)", "Opens without crashing (beta,
+  Android API 36)" and "Publish dev pre-release" (main only).
+- **Why:** environments.md §5 steps 9–15; security review SEC-3, SEC-9,
+  SEC-14, CI-3 to CI-5, CI-8, CI-9; spec v3 US-13 ("Probe Dash Dev"
+  installs next to the Play app).
+- **Not verified:** CI-only. The first flavored build, the APK guards
+  (including the unconfirmed permission entries, #0030) and the emulator
+  runs happen on the first push. `subosito/flutter-action` v2.23.0 is a
+  composite action that itself uses `actions/cache@v5` by tag (not
+  pinnable from here). `distributionSha256Sum` for the Gradle wrapper
+  (SEC-14) was **skipped**: the official checksum on services.gradle.org
+  could not be fetched (egress proxy 403), so it could not be verified.
+  Verified locally: `actionlint`, YAML parse, `shellcheck`.
+- **Agent:** engineer
+- **Files:** `.github/workflows/build.yml`,
+  `.github/workflows/launch-test.yml`, `.github/scripts/check-apk.sh`
+  (new), `.github/dependabot.yml` (new)
+- **Refs:** SEC-3, SEC-9, SEC-14; CI-3, CI-4, CI-5, CI-8, CI-9; ENV-R10;
+  spec v3 US-13, AN-6; #0029, #0030
