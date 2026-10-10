@@ -906,3 +906,14 @@ new entry that references the old one instead. Newest entries at the bottom.
   job runs rarely (tagged releases only), so skipping the cache costs a
   few minutes per release.
 - **Files:** .github/workflows/release.yml
+
+## #0037 — 2026-10-10 — CHANGE — More agent deny rules (PR6-SEC-2) and PowerShell copies
+- **What:** `.claude/settings.json` now also denies `git push --tags`,
+  pushing tag refs, `gh variable`, `gh workflow run` and `gh api` calls
+  that write. Every git and gh deny rule also exists as a
+  `PowerShell(...)` rule, because the owner's Windows PC runs commands
+  with the PowerShell tool, which the `Bash(...)` rules did not cover.
+- **Why:** The owner approved security finding PR6-SEC-2 (AJ_PROBE
+  #0079): agents must never create tags, variables or start release
+  runs. These are speed bumps; GitHub rulesets remain the real control.
+- **Files:** .claude/settings.json
