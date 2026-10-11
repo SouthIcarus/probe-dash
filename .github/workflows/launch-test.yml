@@ -1,7 +1,8 @@
 name: Launch test
 
 # Installs the release APK on an Android emulator, opens it, and fails if
-# the app is not still running 30 seconds later. Prints the crash log on
+# the app is not still running 30 seconds later, or closes after one tap.
+# Uploads pictures of the screen (kept 14 days). Prints the crash log on
 # failure. Catches "app closes on open" bugs that unit tests can't.
 # Covers the dev flavor (API 30/35/36; check names unchanged) and the beta
 # flavor (API 36), environments.md §5 step 14. Analytics stays off (AN-6).
@@ -73,3 +74,13 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           script: bash .github/scripts/launch-test.sh build/app/outputs/flutter-apk/app-${{ matrix.flavor }}-release.apk ${{ matrix.app-id }}
+
+      # Pictures of the game screen only; nothing else is in the folder.
+      - name: Keep the screen pictures
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: screens-${{ matrix.flavor }}-api${{ matrix.api-level }}
+          path: shots/
+          if-no-files-found: ignore
+          retention-days: 14

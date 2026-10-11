@@ -981,3 +981,43 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Not verified:** on a device; Google's privacy options form itself
   (it only appears in regions where consent applies).
 - **Files:** lib/ui/settings_screen.dart, lib/config/privacy_policy.dart, lib/ui/home_screen.dart, lib/services/ad_service.dart, lib/app/game_controller.dart, lib/logic/progress.dart, lib/main.dart, docs/privacy.html, test/settings_screen_test.dart, test/support/fakes.dart
+
+## #0040 — 2026-10-11 — CHANGE — Launch test takes pictures of the screen and taps once
+- **What:** The cloud emulators (Android 11, 15, 16, plus beta on 16)
+  already open the game for every change. `launch-test.sh` now also
+  saves four pictures of the screen (10 s and 30 s after opening, 3 s
+  and 10 s after one tap in the middle of the screen) and fails if the
+  game closes within 10 seconds of that tap. `launch-test.yml` uploads
+  the pictures as a download on the run page, kept 14 days.
+- **Why:** Owner (chat, 11 Oct): "go with the github" for testing in
+  the cloud. The team can now see what the game shows on three Android
+  versions without the owner's phone. Vibration and real ads still
+  need the phone.
+- **Security notes:** workflow permissions unchanged (`contents: read`);
+  the one added action is `actions/upload-artifact`, already used in
+  this repo and pinned to the same commit; no secret is used by this
+  workflow; the pictures show the game screen only; the tap position is
+  built from digits read from the emulator.
+- **Verified:** `bash -n` on the script. **Not verified until the PR's
+  own run:** the pictures and the tap on the real emulators.
+- **Review:** none yet (plan meter at the agreed stop for agent runs);
+  recommended after the reset on 13 Oct, before more is built on it.
+- **Agent:** Andy (inline)
+- **Files:** .github/scripts/launch-test.sh, .github/workflows/launch-test.yml
+
+## #0041 — 2026-10-11 — FIX — Launch test taps PLAY, not the title
+- **What:** The first cloud run of #0040 produced the pictures on
+  Android 11, 15 and 16: the home screen shows correctly on all three.
+  They also showed that the tap in the exact middle of the screen lands
+  on the title and does nothing. The tap now lands on the PLAY button
+  (middle of the width, 70% of the way down), so the last two pictures
+  show a run starting.
+- **Also seen, not caused by this change:** the beta job failed while
+  building, before the test script ran: GitHub's machine could not
+  unpack the Android NDK download ("Error on ZipFile unknown archive").
+  The three dev jobs built and passed in the same run.
+- **Verified:** `bash -n`; the pictures from run 38129507564.
+  **Not verified until this push's own run:** the tap on PLAY.
+- **Agent:** Andy (inline)
+- **Files:** .github/scripts/launch-test.sh
+- **Refs:** #0040
