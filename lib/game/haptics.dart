@@ -114,7 +114,10 @@ class Haptics {
   static HapticsBackend backend = const PlatformHapticsBackend();
 
   /// Length and strength per event (A-29). The crash is the only
-  /// full-strength buzz; the near miss and the upgrade buy are light ticks.
+  /// full-strength buzz; the near miss is a light tick. The upgrade buy is
+  /// a firmer tick: it plays while the finger is still pressing the Buy
+  /// button, where the light tick could not be felt on the owner's S26
+  /// (device check c8f, dev-30).
   static const Map<HapticKind, HapticPattern> patterns = {
     // One strong buzz: 80 ms at full strength.
     HapticKind.crash: HapticPattern([0, 80], [0, 255]),
@@ -124,8 +127,8 @@ class Haptics {
     HapticKind.nearMiss: HapticPattern([0, 20], [0, 110]),
     // Medium double pulse: 35 ms, 60 ms gap, 35 ms.
     HapticKind.newBest: HapticPattern([0, 35, 60, 35], [0, 170, 0, 170]),
-    // Light tick for a successful purchase.
-    HapticKind.upgradeBought: HapticPattern([0, 20], [0, 110]),
+    // Firm tick for a successful purchase: 35 ms, just under the shield hit.
+    HapticKind.upgradeBought: HapticPattern([0, 35], [0, 160]),
   };
 
   static void _play(HapticKind kind) {

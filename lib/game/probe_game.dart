@@ -79,6 +79,7 @@ class ProbeGame extends FlameGame {
   final _HudText _bestText = _HudText();
   final _HudText _crystalText = _HudText();
   final _HudText _bestLabelText = _HudText();
+  final _HudText _bestAheadText = _HudText();
   final _HudText _bannerText = _HudText();
   final _HudText _readyText = _HudText();
   final List<_HudText> _popupTexts = [_HudText(), _HudText()];
@@ -375,6 +376,20 @@ class ProbeGame extends FlameGame {
     }
   }
 
+  /// The top-right HUD note that keeps the record in sight while its gold
+  /// line is still off screen ahead (A-04, device check c9b): "BEST 320 m
+  /// ahead", in 10 m steps so the text is laid out rarely. Null when there
+  /// is no best, the record is passed, or the line itself is on screen.
+  static String? bestAhead(
+      {required int best,
+      required double distanceMeters,
+      required bool markerOnScreen}) {
+    if (best <= 0 || markerOnScreen) return null;
+    final left = best - distanceMeters;
+    if (left <= 0) return null;
+    return 'BEST ${(left / 10).ceil() * 10} m ahead';
+  }
+
   /// On-screen x (world units from the left edge) of the gold best line:
   /// it reaches the probe's x exactly when the run's distance equals [best].
   static double bestMarkerX(
@@ -409,10 +424,27 @@ class ProbeGame extends FlameGame {
     if (bestDistance <= 0) return;
     final x = bestMarkerX(
         best: bestDistance, renderScroll: s.renderScroll, probeX: s.probeX);
-    if (x < -10 || x > _worldWidth + 10) return;
-    _bestLabelText.paint(canvas, 'BEST', Offset(x * _scale, viewPadding.top + 4),
-        size.y * 0.022, gold,
-        center: true);
+    final onScreen = x >= -10 && x <= _worldWidth + 10;
+    if (onScreen) {
+      _bestLabelText.paint(canvas, 'BEST',
+          Offset(x * _scale, viewPadding.top + 4), size.y * 0.022, gold,
+          center: true);
+      return;
+    }
+    // The line is still ahead of the screen: say how far, so there is
+    // always something to chase (the line alone shows for under a second).
+    final ahead = bestAhead(
+        best: bestDistance,
+        distanceMeters: s.distanceMeters,
+        markerOnScreen: false);
+    if (ahead == null || s.passedBest) return;
+    _bestAheadText.paint(
+        canvas,
+        ahead,
+        Offset(size.x - size.y * 0.02 - viewPadding.right, viewPadding.top + 4),
+        size.y * 0.022,
+        gold,
+        right: true);
   }
 
   void _drawNewBestBanner(Canvas canvas) {
@@ -570,6 +602,7 @@ class ProbeGame extends FlameGame {
         _bestText,
         _crystalText,
         _bestLabelText,
+        _bestAheadText,
         _bannerText,
         _readyText,
         ..._popupTexts,
@@ -582,6 +615,7 @@ class ProbeGame extends FlameGame {
       _bestText,
       _crystalText,
       _bestLabelText,
+      _bestAheadText,
       _bannerText,
       _readyText,
       ..._popupTexts,
@@ -606,7 +640,7 @@ class _HudText {
 
   void paint(Canvas canvas, String text, Offset at, double fontSize,
       Color color,
-      {bool center = false, double opacity = 1}) {
+      {bool center = false, bool right = false, double opacity = 1}) {
     if (text != _text || fontSize != _fontSize || color != _color) {
       _text = text;
       _fontSize = fontSize;
@@ -623,7 +657,11 @@ class _HudText {
       _tp.layout();
       layouts++;
     }
-    final o = center ? at.translate(-_tp.width / 2, 0) : at;
+    final o = right
+        ? at.translate(-_tp.width, 0)
+        : center
+            ? at.translate(-_tp.width / 2, 0)
+            : at;
     if (opacity >= 1) {
       _tp.paint(canvas, o);
       return;

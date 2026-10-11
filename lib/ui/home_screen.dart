@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app/game_controller.dart';
 import '../config/env.dart';
 import 'game_screen.dart';
+import 'settings_screen.dart';
 import 'upgrades_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -30,15 +31,26 @@ class HomeScreen extends StatelessWidget {
               padding: const EdgeInsets.all(24),
               child: Column(
                 children: [
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: Text(
-                      '${p.crystals} ◆',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        color: Color(0xFF4DD0E1),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        key: const Key('home-settings'),
+                        tooltip: 'Settings',
+                        icon: const Icon(Icons.settings),
+                        onPressed: () => _push(
+                          context,
+                          SettingsScreen(controller: controller),
+                        ),
                       ),
-                    ),
+                      Text(
+                        '${p.crystals} ◆',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          color: Color(0xFF4DD0E1),
+                        ),
+                      ),
+                    ],
                   ),
                   const Spacer(),
                   const Icon(

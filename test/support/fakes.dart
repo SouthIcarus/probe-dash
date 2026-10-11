@@ -47,6 +47,18 @@ class FakeAds extends AdService {
     return rewardedOutcome;
   }
 
+  // ---- Privacy choices (SEC-5) ----
+
+  /// Whether Settings must offer "Privacy choices".
+  bool privacyRequired = false;
+  int privacyOptionsShown = 0;
+
+  @override
+  Future<bool> privacyOptionsRequired() async => privacyRequired;
+
+  @override
+  Future<void> showPrivacyOptions() async => privacyOptionsShown++;
+
   // ---- Interstitial ----
 
   /// Age of the loaded interstitial; null = none loaded (the default, like

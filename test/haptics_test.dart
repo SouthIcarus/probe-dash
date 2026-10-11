@@ -48,7 +48,8 @@ void main() {
       }
     });
 
-    test('shield is medium, near miss and upgrade buy are light ticks', () {
+    test('shield is medium, near miss is a light tick, upgrade buy is firm',
+        () {
       final shield = p(HapticKind.shieldHit);
       final near = p(HapticKind.nearMiss);
       final buy = p(HapticKind.upgradeBought);
@@ -56,7 +57,11 @@ void main() {
       expect(shield.peakAmplitude, greaterThan(near.peakAmplitude));
       expect(shield.onMillis, greaterThan(near.onMillis));
       expect(near.onMillis, lessThanOrEqualTo(25));
-      expect(buy.onMillis, lessThanOrEqualTo(25));
+      // c8f: the buy tick plays under a pressing finger, so it is longer
+      // and stronger than the near miss, yet still below the shield hit.
+      expect(buy.pulses, 1);
+      expect(buy.onMillis, inInclusiveRange(30, 45));
+      expect(buy.peakAmplitude, greaterThan(near.peakAmplitude));
       expect(buy.peakAmplitude, lessThan(shield.peakAmplitude));
     });
 

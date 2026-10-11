@@ -917,3 +917,67 @@ new entry that references the old one instead. Newest entries at the bottom.
   #0079): agents must never create tags, variables or start release
   runs. These are speed bumps; GitHub rulesets remain the real control.
 - **Files:** .claude/settings.json
+
+## #0038 — 2026-10-11 — CHANGE — Fix the two open S26 checks: firmer buzz on upgrade buy (c8f), "BEST n m ahead" note (c9b)
+- **What:**
+  - **c8f, no buzz felt when buying an upgrade:** the purchase haptic
+    was the same 20 ms / 110 tick as the near miss. In a run that tick
+    is felt; on the Upgrades screen it plays while the finger is still
+    pressing the Buy button and was not. It is now one 35 ms pulse at
+    160 of 255: firmer than the near miss, still below the shield hit
+    (170), so the crash stays the only full-strength buzz. Test
+    updated.
+  - **c9b, no gold BEST line seen ahead:** the line only enters the
+    screen about 16 m before the record, under a second of flying
+    (UX-04 said the same of the old marker). While the line is still
+    off screen ahead, the HUD now shows a gold note at the top right,
+    "BEST 320 m ahead", in 10 m steps so the text is laid out rarely
+    (FEEL-12). When the line comes on screen the note gives way to the
+    line and its "BEST" label, as before. New pure function
+    `ProbeGame.bestAhead` with a unit test; `_HudText.paint` gained a
+    right-aligned option.
+- **Why:** The owner resumed Probe Dash (AJ_PROBE #0119) and these were
+  the two unticked lines of the dev-30 device test (AJ_PROBE #0110).
+  Both are Andy's readings of the cause from the code; neither was
+  reproduced on a phone.
+- **Spec note:** A-29 names a `selectionClick` for the purchase; the
+  firmer pulse departs from that on device evidence. The top-right note
+  is a small addition to A-04 (b), in the spirit of deferred B-08. Both
+  are for the owner to accept or reject at the G2 re-test.
+- **Verified:** `flutter analyze` clean; `flutter test` 204 passed.
+- **Not verified:** on a device.
+- **Files:** lib/game/haptics.dart, lib/game/probe_game.dart, test/haptics_test.dart, test/game_screen_test.dart
+
+## #0039 — 2026-10-11 — CHANGE — Settings screen, privacy policy in the app and online, Teen ad rating (SEC-5, SEC-10, LEG-1)
+- **What:**
+  - **Settings** (gear button on Home): a Vibration switch that is saved
+    with the progress (`settings.haptics`; old saves keep it on, D4);
+    **Privacy choices**, shown only where Google's consent rules apply,
+    which opens Google's privacy options form and then re-reads whether
+    ads may be requested (SEC-5); **Privacy policy**; **Licences**
+    (Flutter's licence page).
+  - **Privacy policy** (LEG-1): the text lives in
+    `lib/config/privacy_policy.dart` and is readable inside the app, so
+    no browser plugin is needed. The same text is in `docs/privacy.html`
+    for GitHub Pages; a test fails if the two drift apart. It describes
+    version 1.0 as built: AdMob ads with consent, progress on the
+    device only, no analytics, no accounts, no purchases.
+  - **SEC-10:** every ad request is limited to content rated Teen
+    (`maxAdContentRating: T`), set before the ads SDK starts.
+  - The ads start-up moved into one function so that agreeing in
+    "Privacy choices" later can start ads without a restart.
+- **Why:** The owner resumed Probe Dash and asked to get it to
+  production (AJ_PROBE #0119). These are the store-compliance pieces a
+  first Play upload needs whatever else ships. Andy proposes a leaner
+  first release (AJ_PROBE `pm/lean-launch.v1.md`); this change is
+  needed on either route.
+- **Owner steps this creates:** switch on GitHub Pages for `/docs` so
+  the policy URL works; that publishes the page, so it is the owner's
+  click. The contact line points at the repo's issue page and the Play
+  listing's developer contact; the owner may prefer an email address.
+- **Verified:** `flutter analyze` clean; `flutter test` 212 passed (8
+  new). The tests caught one real bug on the way (a `setState` given a
+  Future).
+- **Not verified:** on a device; Google's privacy options form itself
+  (it only appears in regions where consent applies).
+- **Files:** lib/ui/settings_screen.dart, lib/config/privacy_policy.dart, lib/ui/home_screen.dart, lib/services/ad_service.dart, lib/app/game_controller.dart, lib/logic/progress.dart, lib/main.dart, docs/privacy.html, test/settings_screen_test.dart, test/support/fakes.dart
