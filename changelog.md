@@ -1004,3 +1004,20 @@ new entry that references the old one instead. Newest entries at the bottom.
   recommended after the reset on 13 Oct, before more is built on it.
 - **Agent:** Andy (inline)
 - **Files:** .github/scripts/launch-test.sh, .github/workflows/launch-test.yml
+
+## #0041 — 2026-10-11 — FIX — Launch test taps PLAY, not the title
+- **What:** The first cloud run of #0040 produced the pictures on
+  Android 11, 15 and 16: the home screen shows correctly on all three.
+  They also showed that the tap in the exact middle of the screen lands
+  on the title and does nothing. The tap now lands on the PLAY button
+  (middle of the width, 70% of the way down), so the last two pictures
+  show a run starting.
+- **Also seen, not caused by this change:** the beta job failed while
+  building, before the test script ran: GitHub's machine could not
+  unpack the Android NDK download ("Error on ZipFile unknown archive").
+  The three dev jobs built and passed in the same run.
+- **Verified:** `bash -n`; the pictures from run 38129507564.
+  **Not verified until this push's own run:** the tap on PLAY.
+- **Agent:** Andy (inline)
+- **Files:** .github/scripts/launch-test.sh
+- **Refs:** #0040

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Usage: launch-test.sh <apk> <application-id>
 # Installs the APK on the running emulator, opens it, and checks it is still
-# alive after 30 seconds. Then taps the middle of the screen once and checks
+# alive after 30 seconds. Then taps the PLAY button once and checks
 # it is still alive 10 seconds later. Saves pictures of the screen to shots/
 # (the workflow uploads them), so a person can see what the game showed
 # without a phone. Prints crash and error logs either way.
@@ -33,19 +33,21 @@ done
 tapped=1
 if (( alive )); then
   shot 2-after-30s
-  # One tap in the middle of the screen (the size comes from the emulator
-  # itself; only digits are used), then a look at what it led to.
+  # One tap on the PLAY button: it sits in the middle of the width, about
+  # 70% of the way down the home screen (seen in the first cloud pictures;
+  # a tap in the exact middle hits the title and does nothing). The size
+  # comes from the emulator itself; only digits are used.
   size=$(adb shell wm size | tr -d '\r' | grep -oE '[0-9]+x[0-9]+' | tail -n 1)
   w=${size%x*}; h=${size#*x}
   if [[ "$w" =~ ^[0-9]+$ && "$h" =~ ^[0-9]+$ ]]; then
-    adb shell input tap $(( w / 2 )) $(( h / 2 ))
+    adb shell input tap $(( w / 2 )) $(( h * 70 / 100 ))
     sleep 3
     shot 3-after-tap
     sleep 7
     shot 4-ten-seconds-after-tap
     if ! adb shell pidof "$APP_ID" >/dev/null; then
       tapped=0
-      echo "App process gone within 10s of a tap in the middle of the screen"
+      echo "App process gone within 10s of a tap on PLAY"
     fi
   else
     echo "Could not read the screen size; the tap was skipped."
@@ -62,7 +64,7 @@ if (( alive && tapped )); then
   exit 0
 fi
 if (( alive )); then
-  echo "::error::App closed within 10 seconds of a tap in the middle of the screen. See logs above."
+  echo "::error::App closed within 10 seconds of a tap on PLAY. See logs above."
   exit 1
 fi
 echo "::error::App closed within 30 seconds of opening. See logs above."
