@@ -325,6 +325,20 @@ void main() {
       expect(ProbeGame.bestLine(1287, passed: true), 'NEW BEST');
     });
 
+    test('record still ahead of the screen: "BEST n m ahead" (c9b)', () {
+      String? ahead(int best, double at, {bool onScreen = false}) =>
+          ProbeGame.bestAhead(
+              best: best, distanceMeters: at, markerOnScreen: onScreen);
+      expect(ahead(0, 0), isNull); // no record yet
+      expect(ahead(1287, 0), 'BEST 1290 m ahead'); // rounded up to 10 m
+      expect(ahead(1287, 967), 'BEST 320 m ahead');
+      expect(ahead(1287, 968), 'BEST 320 m ahead'); // same text for 10 m
+      expect(ahead(1287, 1280), 'BEST 10 m ahead');
+      expect(ahead(1287, 1280, onScreen: true), isNull); // the line shows
+      expect(ahead(1287, 1287), isNull); // reached
+      expect(ahead(1287, 1500), isNull); // passed
+    });
+
     test('banner grows 0.6x to 1x in 150 ms, holds, fades by 1.25 s', () {
       expect(ProbeGame.bannerScale(0), closeTo(0.6, 1e-9));
       expect(ProbeGame.bannerScale(0.15), 1.0);

@@ -917,3 +917,33 @@ new entry that references the old one instead. Newest entries at the bottom.
   #0079): agents must never create tags, variables or start release
   runs. These are speed bumps; GitHub rulesets remain the real control.
 - **Files:** .claude/settings.json
+
+## #0038 — 2026-10-11 — CHANGE — Fix the two open S26 checks: firmer buzz on upgrade buy (c8f), "BEST n m ahead" note (c9b)
+- **What:**
+  - **c8f, no buzz felt when buying an upgrade:** the purchase haptic
+    was the same 20 ms / 110 tick as the near miss. In a run that tick
+    is felt; on the Upgrades screen it plays while the finger is still
+    pressing the Buy button and was not. It is now one 35 ms pulse at
+    160 of 255: firmer than the near miss, still below the shield hit
+    (170), so the crash stays the only full-strength buzz. Test
+    updated.
+  - **c9b, no gold BEST line seen ahead:** the line only enters the
+    screen about 16 m before the record, under a second of flying
+    (UX-04 said the same of the old marker). While the line is still
+    off screen ahead, the HUD now shows a gold note at the top right,
+    "BEST 320 m ahead", in 10 m steps so the text is laid out rarely
+    (FEEL-12). When the line comes on screen the note gives way to the
+    line and its "BEST" label, as before. New pure function
+    `ProbeGame.bestAhead` with a unit test; `_HudText.paint` gained a
+    right-aligned option.
+- **Why:** The owner resumed Probe Dash (AJ_PROBE #0119) and these were
+  the two unticked lines of the dev-30 device test (AJ_PROBE #0110).
+  Both are Andy's readings of the cause from the code; neither was
+  reproduced on a phone.
+- **Spec note:** A-29 names a `selectionClick` for the purchase; the
+  firmer pulse departs from that on device evidence. The top-right note
+  is a small addition to A-04 (b), in the spirit of deferred B-08. Both
+  are for the owner to accept or reject at the G2 re-test.
+- **Verified:** `flutter analyze` clean; `flutter test` 204 passed.
+- **Not verified:** on a device.
+- **Files:** lib/game/haptics.dart, lib/game/probe_game.dart, test/haptics_test.dart, test/game_screen_test.dart
