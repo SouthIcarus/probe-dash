@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app/game_controller.dart';
+import 'game/haptics.dart';
 import 'services/ad_service.dart';
 import 'services/save_store.dart';
 import 'ui/home_screen.dart';
@@ -16,6 +17,8 @@ Future<void> main() async {
     store: store,
     ads: AdService(),
   );
+
+  Haptics.enabled = controller.progress.hapticsOn; // the saved Settings choice
 
   runApp(ProbeDashApp(controller: controller));
 

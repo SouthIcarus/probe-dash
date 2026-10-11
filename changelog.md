@@ -947,3 +947,37 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Verified:** `flutter analyze` clean; `flutter test` 204 passed.
 - **Not verified:** on a device.
 - **Files:** lib/game/haptics.dart, lib/game/probe_game.dart, test/haptics_test.dart, test/game_screen_test.dart
+
+## #0039 — 2026-10-11 — CHANGE — Settings screen, privacy policy in the app and online, Teen ad rating (SEC-5, SEC-10, LEG-1)
+- **What:**
+  - **Settings** (gear button on Home): a Vibration switch that is saved
+    with the progress (`settings.haptics`; old saves keep it on, D4);
+    **Privacy choices**, shown only where Google's consent rules apply,
+    which opens Google's privacy options form and then re-reads whether
+    ads may be requested (SEC-5); **Privacy policy**; **Licences**
+    (Flutter's licence page).
+  - **Privacy policy** (LEG-1): the text lives in
+    `lib/config/privacy_policy.dart` and is readable inside the app, so
+    no browser plugin is needed. The same text is in `docs/privacy.html`
+    for GitHub Pages; a test fails if the two drift apart. It describes
+    version 1.0 as built: AdMob ads with consent, progress on the
+    device only, no analytics, no accounts, no purchases.
+  - **SEC-10:** every ad request is limited to content rated Teen
+    (`maxAdContentRating: T`), set before the ads SDK starts.
+  - The ads start-up moved into one function so that agreeing in
+    "Privacy choices" later can start ads without a restart.
+- **Why:** The owner resumed Probe Dash and asked to get it to
+  production (AJ_PROBE #0119). These are the store-compliance pieces a
+  first Play upload needs whatever else ships. Andy proposes a leaner
+  first release (AJ_PROBE `pm/lean-launch.v1.md`); this change is
+  needed on either route.
+- **Owner steps this creates:** switch on GitHub Pages for `/docs` so
+  the policy URL works; that publishes the page, so it is the owner's
+  click. The contact line points at the repo's issue page and the Play
+  listing's developer contact; the owner may prefer an email address.
+- **Verified:** `flutter analyze` clean; `flutter test` 212 passed (8
+  new). The tests caught one real bug on the way (a `setState` given a
+  Future).
+- **Not verified:** on a device; Google's privacy options form itself
+  (it only appears in regions where consent applies).
+- **Files:** lib/ui/settings_screen.dart, lib/config/privacy_policy.dart, lib/ui/home_screen.dart, lib/services/ad_service.dart, lib/app/game_controller.dart, lib/logic/progress.dart, lib/main.dart, docs/privacy.html, test/settings_screen_test.dart, test/support/fakes.dart

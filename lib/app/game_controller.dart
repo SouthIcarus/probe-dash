@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../game/haptics.dart';
 import '../logic/ad_rules.dart';
 import '../logic/progress.dart';
 import '../logic/run_session.dart';
@@ -29,6 +30,14 @@ class GameController extends ChangeNotifier {
   final DateTime Function() clock;
 
   static DateTime _utcNow() => DateTime.now().toUtc();
+
+  /// Settings switch: turns game vibration on or off and saves the choice.
+  Future<void> setHaptics(bool on) {
+    progress.hapticsOn = on;
+    Haptics.enabled = on;
+    notifyListeners();
+    return store.save(progress);
+  }
 
   bool _rewardedShownThisRun = false;
 

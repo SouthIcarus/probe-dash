@@ -44,6 +44,7 @@ class AdService {
   InterstitialAd? _interstitial;
   bool _loadingInterstitial = false;
   bool _canRequestAds = false;
+  bool _sdkStarted = false;
 
   /// Started when the interstitial finishes loading. Monotonic, so a device
   /// clock change can't make an old ad look fresh (AD-7).
@@ -85,13 +86,53 @@ class AdService {
         },
       );
       await done.future;
-      _canRequestAds = await ConsentInformation.instance.canRequestAds();
-      if (!_canRequestAds) return;
-      await MobileAds.instance.initialize();
-      _loadRewarded();
-      _loadInterstitial();
+      await _startIfAllowed();
     } catch (e) {
       debugPrint('Ads unavailable: $e');
+    }
+  }
+
+  /// Starts the ads SDK and preloads ads, once, when consent allows it.
+  Future<void> _startIfAllowed() async {
+    _canRequestAds = await ConsentInformation.instance.canRequestAds();
+    if (!_canRequestAds || _sdkStarted) return;
+    // SEC-10: the game is for ages 13+, so no ad rated above Teen.
+    await MobileAds.instance.updateRequestConfiguration(
+      RequestConfiguration(maxAdContentRating: MaxAdContentRating.t),
+    );
+    await MobileAds.instance.initialize();
+    _sdkStarted = true;
+    _loadRewarded();
+    _loadInterstitial();
+  }
+
+  /// SEC-5: whether Settings must offer "Privacy choices" (true where
+  /// Google's consent rules apply, such as the EEA and UK).
+  Future<bool> privacyOptionsRequired() async {
+    if (!enabled) return false;
+    try {
+      return await ConsentInformation.instance
+              .getPrivacyOptionsRequirementStatus() ==
+          PrivacyOptionsRequirementStatus.required;
+    } catch (e) {
+      debugPrint('Privacy options status unavailable: $e');
+      return false;
+    }
+  }
+
+  /// SEC-5: opens Google's privacy options form, then re-reads whether ads
+  /// may be requested (and starts ads if the player has now agreed).
+  Future<void> showPrivacyOptions() async {
+    if (!enabled) return;
+    try {
+      final done = Completer<void>();
+      ConsentForm.showPrivacyOptionsForm((_) {
+        if (!done.isCompleted) done.complete();
+      });
+      await done.future;
+      await _startIfAllowed();
+    } catch (e) {
+      debugPrint('Privacy options unavailable: $e');
     }
   }
 

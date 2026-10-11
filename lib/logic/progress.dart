@@ -13,6 +13,7 @@ class Progress {
     this.lastInterstitialAt,
     DateTime? firstOpenAt,
     this.removeAds = false,
+    this.hapticsOn = true,
   })  : upgrades = upgrades ?? {for (final t in UpgradeType.values) t: 0},
         firstOpenAt = firstOpenAt ?? DateTime.now().toUtc();
 
@@ -26,6 +27,9 @@ class Progress {
   DateTime? lastInterstitialAt;
   final DateTime firstOpenAt;
   bool removeAds;
+
+  /// The Settings switch for game vibration (A-29, D4: on by default).
+  bool hapticsOn;
 
   int level(UpgradeType t) => upgrades[t] ?? 0;
 
@@ -61,6 +65,7 @@ class Progress {
         'bestDistance': bestDistance,
         'upgrades': {for (final e in upgrades.entries) e.key.name: e.value},
         'entitlements': {'removeAds': removeAds},
+        'settings': {'haptics': hapticsOn},
         'stats': {
           'runs': runs,
           'firstOpenAt': firstOpenAt.toIso8601String(),
@@ -78,6 +83,7 @@ class Progress {
     final ent = json['entitlements'];
     final stats = json['stats'];
     final statsMap = stats is Map ? stats : const {};
+    final settings = json['settings'];
 
     return Progress(
       crystals: asInt(json['crystals']),
@@ -87,6 +93,8 @@ class Progress {
           t: (up is Map ? asInt(up[t.name]) : 0).clamp(0, Upgrades.maxLevel),
       },
       removeAds: ent is Map && ent['removeAds'] == true,
+      // Only an explicit "false" turns vibration off; old saves keep it on.
+      hapticsOn: !(settings is Map && settings['haptics'] == false),
       runs: asInt(statsMap['runs']),
       interstitialsShown: asInt(statsMap['interstitialsShown']),
       lastInterstitialAt: asDate(statsMap['lastInterstitialAt']),
