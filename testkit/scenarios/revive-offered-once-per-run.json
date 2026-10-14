@@ -1,0 +1,21 @@
+{
+  "id": "revive-offered-once-per-run",
+  "title": "After one watched-ad revive the second crash goes straight to results, no second offer",
+  "covers": ["US-1", "A-20"],
+  "profile": {"size": [411, 891], "dpr": 2.63, "topInsetPx": 84, "seed": 42},
+  "setup": {"save": {"crystals": 50}, "ads": {"rewardedReady": true, "rewardedWatchResult": true}},
+  "steps": [
+    {"do": "tap", "text": "PLAY"},
+    {"do": "wait_state", "path": "ui.screen", "eq": "game", "timeoutMs": 2000},
+    {"do": "tap_at", "x": 0.5, "y": 0.5},
+    {"do": "wait_state", "path": "ui.overlay", "eq": "revive", "timeoutMs": 15000},
+    {"do": "expect", "path": "game.canRevive", "eq": true},
+    {"do": "advance", "ms": 400},
+    {"do": "tap", "text": "Watch ad to revive"},
+    {"do": "wait_state", "path": "game.reviveUsed", "eq": true, "timeoutMs": 3000},
+    {"do": "expect", "path": "game.canRevive", "eq": false},
+    {"do": "wait_state", "path": "ui.overlay", "eq": "results", "timeoutMs": 20000},
+    {"do": "expect", "path": "progress.runs", "eq": 1, "why": "one run, however many crashes"},
+    {"do": "expect", "path": "progress.crystals", "eq": 50, "why": "no pickups on this seed's first 15 m"}
+  ]
+}

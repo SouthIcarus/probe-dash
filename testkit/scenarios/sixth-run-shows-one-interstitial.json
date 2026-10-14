@@ -1,0 +1,16 @@
+{
+  "id": "sixth-run-shows-one-interstitial",
+  "title": "The 6th run of a player's life shows one full-screen ad and counts it once",
+  "covers": ["AD-5", "AD-9"],
+  "profile": {"size": [411, 891], "dpr": 2.63, "topInsetPx": 84, "seed": 42},
+  "setup": {"save": {"stats": {"runs": 5, "interstitialsShown": 2}}, "ads": {"rewardedReady": false, "interstitialLoaded": true}},
+  "steps": [
+    {"do": "tap", "text": "PLAY"},
+    {"do": "wait_state", "path": "ui.screen", "eq": "game", "timeoutMs": 2000},
+    {"do": "tap_at", "x": 0.5, "y": 0.5},
+    {"do": "wait_state", "path": "ui.overlay", "eq": "results", "timeoutMs": 15000},
+    {"do": "advance", "ms": 3000},
+    {"do": "expect", "path": "progress.runs", "eq": 6},
+    {"do": "expect", "path": "progress.interstitialsShown", "eq": 3, "why": "2 before + the one shown at run 6, counted once"}
+  ]
+}

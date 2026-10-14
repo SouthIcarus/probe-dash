@@ -28,6 +28,8 @@ save store, a fake clock. No phone, no browser.
 | Fake or invented data only | The repo is public |
 | A scenario that fails once and passes on retry is **FLAKY** and counts as a failure | No "retry until green" |
 | Never delete a scenario or an `expect` to get green | `manifest.json` records ids, assertion counts and file hashes; the test run fails when one drops or changes |
+| **Adding a scenario needs one extra run with `TESTKIT_UPDATE_MANIFEST=1`** | The run fails with "not in manifest.json yet" until the new file is recorded. No reason is needed for a new scenario. See "Changing or removing a scenario" |
+| Changing the kit itself (`test/testkit/`, `lib/testkit/`, `testkit/tool/`) needs a `TESTKIT-CHANGE:` line | Those files decide whether a scenario passes. `manifest.json` records their hashes under `kitFiles` |
 
 ## Top level
 
@@ -63,6 +65,7 @@ Samsung S26: `"size": [411, 891], "dpr": 2.628, "topInsetPx": 84` or
 | `save` | `"fixtures/fresh.json"` (a file in `testkit/fixtures/`) or an inline object with the save fields, for example `{ "bestDistance": 60, "crystals": 500 }` |
 | `ads.rewardedReady` | `true` (default) = a rewarded ad is loaded; `false` = none, so a crash goes straight to results |
 | `ads.rewardedWatchResult` | `true` = the player watches the ad to the end and earns the reward |
+| `ads.interstitialLoaded` | `true` = a full-screen ad is loaded, so the 6th, 9th, 12th... run shows it (default `false`). Use a save with `stats.runs` of 5 to reach run 6 in one crash |
 
 The scenario starts on the **Home** screen. Tap `PLAY` to reach the game.
 
@@ -88,6 +91,18 @@ Each step is an object with `"do"` plus its fields.
 ## The state you can check
 
 `path` uses dots, for example `game.hud.bestAhead`.
+
+**These paths are frozen as schema 1** (`"schema": 1` in `game.*`). A path may
+be added; none is renamed or removed within schema 1. A change that must
+break a path bumps the schema number and is a `TESTKIT-CHANGE`.
+
+**`ui.*` is read from on-screen text.** `ui.screen`, `ui.overlay` and
+`ui.countdown` are worked out from what the screen shows ("CONTINUE?",
+"PLAY AGAIN", "PROBE DASH", a single digit), not from a state variable. If
+the game's wording changes, scenarios that use `ui.*` or `tap`/`expect_text`
+on that wording fail until the new text is put in `testState()` or the
+scenario. Treat a copy change as a kit change. `progress.*` and `game.*` come
+from the game's numbers and do not depend on wording.
 
 | Path | Meaning |
 |---|---|
@@ -136,11 +151,16 @@ fault, the whole run is red: the kit cannot be trusted.
 
 ## Changing or removing a scenario
 
-1. Edit the scenario.
-2. Record the new hash: `TESTKIT_UPDATE_MANIFEST=1 flutter test test/testkit`
+1. Edit, add or remove the scenario (or a kit file).
+2. Record the new hashes: `TESTKIT_UPDATE_MANIFEST=1 flutter test test/testkit`
    (PowerShell: `$env:TESTKIT_UPDATE_MANIFEST=1; flutter test test/testkit`).
+   The run that rewrites the manifest can show one red test about the old
+   manifest; run `flutter test test/testkit` again and it must be green.
+   **Adding a scenario needs this step too.**
 3. In the PR description write `TESTKIT-CHANGE: <why>` when a scenario was
-   removed, lost an assertion or changed. Adding a scenario needs no reason.
+   removed, lost an assertion or changed, or when any file in `test/testkit/`,
+   `lib/testkit/` or `testkit/tool/` changed. Adding a scenario without
+   touching those files needs no reason.
 
 Checking two manifests (what CI should run, see `CI-PROPOSAL.txt`):
 

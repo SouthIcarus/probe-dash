@@ -14,6 +14,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'src/kit_files.dart';
 import 'src/manifest.dart';
 import 'src/report.dart';
 import 'src/runner.dart';
@@ -193,17 +194,27 @@ void main() {
               l.scenario!.sha256, l.scenario!.canary),
     };
     final file = File('${kitDir.path}/manifest.json');
+    final kitNow = hashKitFiles();
     final update = Platform.environment['TESTKIT_UPDATE_MANIFEST'] == '1';
     if (update) {
-      file.writeAsStringSync(manifestText(current.values.toList()));
+      file.writeAsStringSync(
+          manifestText(current.values.toList(), kitFiles: kitNow));
     }
     final recorded = parseManifest(file.readAsStringSync());
+    final recordedKit = parseKitFiles(file.readAsStringSync());
     baselineScenarios = recorded.length;
     baselineAssertions = recorded.values.fold<int>(0, (n, e) => n + e.assertions);
     final reason = Platform.environment['TESTKIT_CHANGE'] ?? '';
     final problems = <String>[
       if (reason.trim().isEmpty && !update)
         ...weakeningProblems(recorded, current),
+      if (reason.trim().isEmpty && !update)
+        ...kitFileProblems(recordedKit, kitNow),
+      // A new kit file is not a weakening, but it must be recorded.
+      for (final p in kitNow.keys)
+        if (!recordedKit.containsKey(p))
+          'kit file "$p" is not in manifest.json yet (run once with '
+              'TESTKIT_UPDATE_MANIFEST=1 and commit the file)',
       for (final id in unlisted(recorded, current))
         'scenario "$id" is not in manifest.json yet (run once with '
             'TESTKIT_UPDATE_MANIFEST=1 and commit the file)',

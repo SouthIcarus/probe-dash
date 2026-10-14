@@ -70,6 +70,7 @@ class Setup {
     this.saveInline,
     this.rewardedReady = true,
     this.rewardedWatchResult = false,
+    this.interstitialLoaded = false,
   });
 
   /// Path under `testkit/` of a save fixture, or an inline save object.
@@ -77,6 +78,9 @@ class Setup {
   final Map<String, Object?>? saveInline;
   final bool rewardedReady;
   final bool rewardedWatchResult;
+
+  /// A full-screen ad is loaded, so the AD-5 rule can show it (run 6, 9...).
+  final bool interstitialLoaded;
 }
 
 class Step {
@@ -281,31 +285,36 @@ Setup _parseSetup(Object? raw, String where) {
     throw ScenarioError(
         '$where: setup "save" must be a fixture path or an object.');
   }
-  var ready = true, watch = false;
+  var ready = true, watch = false, interstitial = false;
   final ads = raw['ads'];
   if (ads != null) {
     if (ads is! Map<String, Object?>) {
       throw ScenarioError('$where: setup "ads" must be an object.');
     }
     for (final k in ads.keys) {
-      if (k != 'rewardedReady' && k != 'rewardedWatchResult') {
+      if (k != 'rewardedReady' &&
+          k != 'rewardedWatchResult' &&
+          k != 'interstitialLoaded') {
         throw ScenarioError('$where: unknown ads field "$k". Allowed: '
-            'rewardedReady, rewardedWatchResult.');
+            'rewardedReady, rewardedWatchResult, interstitialLoaded.');
       }
     }
     final r = ads['rewardedReady'] ?? true;
     final w = ads['rewardedWatchResult'] ?? false;
-    if (r is! bool || w is! bool) {
+    final i = ads['interstitialLoaded'] ?? false;
+    if (r is! bool || w is! bool || i is! bool) {
       throw ScenarioError('$where: ads fields must be true or false.');
     }
     ready = r;
     watch = w;
+    interstitial = i;
   }
   return Setup(
     saveFixture: fixture,
     saveInline: inline,
     rewardedReady: ready,
     rewardedWatchResult: watch,
+    interstitialLoaded: interstitial,
   );
 }
 

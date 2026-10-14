@@ -1,12 +1,12 @@
 {
-  "version": 1,
-  "scenarioCount": 6,
-  "assertionCount": 25,
+  "version": 2,
+  "scenarioCount": 9,
+  "assertionCount": 45,
   "scenarios": {
     "back-guard-during-run": {
-      "assertions": 5,
+      "assertions": 7,
       "canary": false,
-      "sha256": "a9afa03f4ce1a2685081264b35baefc59c6b449faa67c251aaa4363976f22b6f"
+      "sha256": "32eb9ebdc72dfab9eeb2420b5b21031742ba0aedb0a8310e5d0ed139b7a1e09a"
     },
     "best-line-counts-down": {
       "assertions": 3,
@@ -28,10 +28,41 @@
       "canary": false,
       "sha256": "4a1099942228d3d7603e8ba94e893c545d50bd9e384ae4a9db10209280c0d8d7"
     },
-    "revive-offer-then-decline": {
-      "assertions": 5,
+    "full-run-scores-exact": {
+      "assertions": 8,
       "canary": false,
-      "sha256": "50fc2e998e7a642ca8f966ede63bee9f2d7b58d3b4f838ba0e52f46663cb35bd"
+      "sha256": "bd26ce7b2bc9107966764448edc5f376cd38c692ad72737df550c80a74ec2cd7"
+    },
+    "revive-offer-then-decline": {
+      "assertions": 9,
+      "canary": false,
+      "sha256": "db74b6e6a3e73252e7116b32077fe5158bb42435444bab9743483f80e86239a9"
+    },
+    "revive-offered-once-per-run": {
+      "assertions": 4,
+      "canary": false,
+      "sha256": "b0d3e6a98109d71d607305d2812e296fe8e161d8a0f9f5a214c11ac75c0666d9"
+    },
+    "sixth-run-shows-one-interstitial": {
+      "assertions": 2,
+      "canary": false,
+      "sha256": "f86e082fe8cabed8bdc39edfb977320eab650b65fc9d32891b7cefdcf32340a5"
     }
+  },
+  "kitFiles": {
+    "lib/testkit/fault.dart": "49d6e4c75589d7560b83442398ab75ec1b548ad737b8bc2ac82e91beb9bc9169",
+    "lib/testkit/state_logger.dart": "8857ea1ac60dde365641200e1b0c06278744af076b7cc149bc98b655323a4d39",
+    "test/testkit/hooks_test.dart": "0729c67ad419a14dbdd5d136c5201df5f627e7a3cea1dd940ae113b708b3c10c",
+    "test/testkit/kit_rules_test.dart": "c8290f284b9a525831f421975d9b97d5a1b698f72ce81320f7931faae812726f",
+    "test/testkit/repeatability_test.dart": "08a179d26c9d804a72ae9c738699374cdbcd69d31a721344d505f915ee89cee9",
+    "test/testkit/scenario_runner_test.dart": "b3d1ce37fb1b5c943282ecf82979ea85ddcba3ad0c1fa1e74e9853e5db3e019e",
+    "test/testkit/src/checks.dart": "fbc6d2ac48aa700c7aea7ec4db2a5a11307c3b57042818967f2207641f92df82",
+    "test/testkit/src/kit_files.dart": "232b38d40b516b7e586e70f2c805f71d7099356bb8cd06b976ba4b8151c37852",
+    "test/testkit/src/manifest.dart": "24a37ef3e1f99b42c9290ddd53625733d792bcbdd1ffc67a28dd8f491b5154ba",
+    "test/testkit/src/report.dart": "b3fe2753a161f404bd74f93baa7514603b73e15f9a3d1a531d34285a7f923778",
+    "test/testkit/src/runner.dart": "20b6fdd39420dc241bc761a212283ab354e4166f626b6920a84d40444f78cd49",
+    "test/testkit/src/scenario.dart": "fbd30ae8dd7ab30d603b672745a152919a28fd4ba90487641190dada251d7f4e",
+    "test/testkit/src/sha256.dart": "3d4648829acdad3f1c789dffb74d0b3d8bfbe77c48fa10c7b595f6a3c69a124c",
+    "testkit/tool/check_manifest.dart": "68f7fd7afdff81b2084bca9ed0241fdcdb843964f0783ef3adc1eec2e185373b"
   }
 }

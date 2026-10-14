@@ -1091,3 +1091,60 @@ new entry that references the old one instead. Newest entries at the bottom.
   fixtures/, tool/check_manifest.dart), .gitignore, changelog.md
 - **Refs:** AJ_PROBE docs/testing/flutter-agent-testing.v1.md sections 7,
   8, 11 (R1, R2, R5, R6)
+
+## #0043 — 2026-10-14 — CHANGE — Probe Test Kit: scenarios check numbers, kit files are hashed, CI text fixed (Chow T1, T3, T4)
+- **What:** Chow's review of #0042 (AJ_PROBE `docs/testing/review-testkit-slice1.v1.md`)
+  found the kit caught 1 of 8 planted bugs and that a weakened runner passed
+  silently. (T1) Three new scenarios assert exact seeded numbers:
+  `full-run-scores-exact` (seed 6: 4 gates, 1 near miss, 10 crystals, 153 m,
+  saved once on top of 100 crystals), `sixth-run-shows-one-interstitial`
+  (counter goes 2 to 3) and `revive-offered-once-per-run` (no second revive
+  offer). `revive-offer-then-decline` and `back-guard-during-run` gained
+  `eq` checks on crystals, best, gates and the interstitial counter. A new
+  scenario setup field `ads.interstitialLoaded` (test code only) loads a
+  full-screen ad in the fake. (T3) `manifest.json` (now version 2) lists a
+  SHA-256 for every `.dart` file in `test/testkit/`, `lib/testkit/` and
+  `testkit/tool/` under `kitFiles`; a removed or changed kit file fails the
+  run and `check_manifest.dart` unless a `TESTKIT-CHANGE` reason is given,
+  and the tool also fails when the manifest does not match the files on
+  disk. (T4) `testkit/CI-PROPOSAL.txt` item 2 is rewritten as text only: it
+  goes in build.yml's test job, fetches `$PR_BASE` explicitly, exits 1 when
+  the base or its manifest cannot be read, requires the reason line in plain
+  shell whenever kit files changed, and keeps `${{ github.* }}` out of
+  `run:`. `testkit/SCHEMA.md`: adding a scenario needs
+  `TESTKIT_UPDATE_MANIFEST=1`, `ui.*` is read from on-screen text, state
+  paths are frozen as schema 1.
+- **Why:** A green kit that checks too little is false confidence (T1). The
+  rule "agents cannot weaken tests" must also cover the runner that decides
+  pass or fail (T3). The CI text as written would have passed with no base to
+  compare (T4).
+- **TESTKIT-CHANGE:** two existing scenarios gained assertions (hash
+  changed, none lost); `test/testkit/src/` (scenario.dart, runner.dart,
+  manifest.dart, new kit_files.dart), `scenario_runner_test.dart`,
+  `kit_rules_test.dart` and `testkit/tool/check_manifest.dart` changed to
+  add the above. Nothing was weakened.
+- **Not changed:** nothing under `lib/` and nothing under `.github/`; no
+  workflow is edited (the CI text waits for the owner and a deep security
+  pass). Production behaviour is unchanged because no app file changed.
+- **Verified:** `flutter analyze`: no issues. `flutter test`: 273 pass
+  (212 old + 61 kit; was 261). `flutter test test/testkit` 61 pass, also
+  with `TESTKIT_REPEAT=3`. Planted bugs in a scratch copy (each reverted):
+  the kit alone catches all 8 of Chow's (was 1 of 8). Weakening the
+  runner in a scratch copy and refreshing the manifest passes locally but
+  `check_manifest.dart` against the base manifest exits 1 (kit file
+  changed); the same with a reason exits 0.
+- **Not verified:** the CI step itself on GitHub (A6) and the T4 text as
+  an executed workflow; two planted bugs (game keeps running under a
+  full-screen ad, run saved twice) are not seen by the kit, only by the
+  older tests; a cold-agent A10; pictures on Linux CI.
+- **Agent:** Billy
+- **Files:** test/testkit/ (scenario_runner_test.dart, kit_rules_test.dart,
+  src/scenario.dart, src/runner.dart, src/manifest.dart, src/kit_files.dart),
+  testkit/ (manifest.json, SCHEMA.md, CI-PROPOSAL.txt,
+  tool/check_manifest.dart, scenarios/back-guard-during-run.json,
+  scenarios/revive-offer-then-decline.json,
+  scenarios/full-run-scores-exact.json,
+  scenarios/sixth-run-shows-one-interstitial.json,
+  scenarios/revive-offered-once-per-run.json), changelog.md
+- **Refs:** #0042; Chow review T1, T3, T4 (T2 is closed by applying the CI
+  text); AJ_PROBE docs/testing/flutter-agent-testing.v1.md

@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'src/checks.dart';
+import 'src/kit_files.dart';
 import 'src/manifest.dart';
 import 'src/report.dart';
 import 'src/scenario.dart';
@@ -243,6 +244,87 @@ void main() {
         id: ManifestEntry(id, s.assertionCount, s.sha256, false),
       };
       expect(weakeningProblems(recordedReal, now), isNotEmpty);
+    });
+  });
+
+  group('kit files are part of the ratchet (T3)', () {
+    test('the manifest text lists kit files, sorted, and round-trips', () {
+      final text = manifestText(const [],
+          kitFiles: {'test/testkit/src/b.dart': 'h2', 'lib/testkit/a.dart': 'h1'});
+      final back = parseKitFiles(text);
+      expect(back.keys, ['lib/testkit/a.dart', 'test/testkit/src/b.dart']);
+      expect(back['lib/testkit/a.dart'], 'h1');
+      expect(text, contains('"version": 2'));
+    });
+
+    test('an old manifest without kitFiles reads as empty and holds', () {
+      expect(parseKitFiles('{"scenarios": {}}'), isEmpty);
+      expect(kitFileProblems({}, {'a.dart': 'h'}), isEmpty,
+          reason: 'a file that is new is not a weakening');
+    });
+
+    test('a removed or changed kit file is a problem', () {
+      final rec = {'a.dart': 'h1', 'b.dart': 'h2'};
+      expect(kitFileProblems(rec, {'a.dart': 'h1', 'b.dart': 'h2'}), isEmpty);
+      expect(kitFileProblems(rec, {'a.dart': 'h1'}),
+          ['kit file "b.dart" was removed']);
+      expect(kitFileProblems(rec, {'a.dart': 'h1', 'b.dart': 'x'}),
+          ['kit file "b.dart" changed (hash differs)']);
+    });
+
+    test('a malformed kitFiles section is refused', () {
+      expect(() => parseKitFiles('{"kitFiles": []}'), throwsFormatException);
+      expect(() => parseKitFiles('{"kitFiles": {"a": 1}}'),
+          throwsFormatException);
+    });
+
+    test('the real kit files are found and match the recorded manifest', () {
+      final disk = hashKitFiles();
+      for (final p in [
+        'test/testkit/src/runner.dart',
+        'test/testkit/src/checks.dart',
+        'test/testkit/scenario_runner_test.dart',
+        'lib/testkit/state_logger.dart',
+        'lib/testkit/fault.dart',
+        'testkit/tool/check_manifest.dart',
+      ]) {
+        expect(disk.keys, contains(p));
+      }
+      final recorded =
+          parseKitFiles(File('testkit/manifest.json').readAsStringSync());
+      expect(kitFileProblems(recorded, disk), isEmpty);
+    });
+
+    test('a weakened runner changes its hash and fails the ratchet (T3, on '
+        'the real file)', () {
+      final recorded =
+          parseKitFiles(File('testkit/manifest.json').readAsStringSync());
+      const p = 'test/testkit/src/checks.dart';
+      final text = File(p).readAsStringSync();
+      final weaker = '$text\n// every comparison now passes\n';
+      expect(sha256OfText(weaker), isNot(recorded[p]));
+      final problems = kitFileProblems(
+          recorded, {...recorded, p: sha256OfText(weaker)});
+      expect(problems, ['kit file "$p" changed (hash differs)']);
+    });
+
+    test('the same file hashes the same with Windows or Unix line ends', () {
+      expect(sha256OfText('a\r\nb\r\n'), sha256OfText('a\nb\n'));
+    });
+  });
+
+  group('setup.ads.interstitialLoaded', () {
+    test('defaults to false and accepts true', () {
+      expect(_parse(_okScenario).setup.interstitialLoaded, isFalse);
+      final s = _with('"steps"',
+          '"setup": {"ads": {"interstitialLoaded": true}}, "steps"');
+      expect(_parse(s).setup.interstitialLoaded, isTrue);
+    });
+
+    test('a non-boolean value is refused', () {
+      _refused(
+          _with('"steps"', '"setup": {"ads": {"interstitialLoaded": 1}}, "steps"'),
+          'true or false');
     });
   });
 

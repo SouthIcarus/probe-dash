@@ -138,11 +138,17 @@ Future<RunOutcome> runScenario(
   applyProfile();
 
   final save = _loadSave(s.setup, kitDir);
+  final ads = FakeAds(
+      ready: s.setup.rewardedReady, watchResult: s.setup.rewardedWatchResult);
+  if (s.setup.interstitialLoaded) {
+    ads.loadedInterstitialAge = Duration.zero;
+    ads.interstitialScript = const InterstitialScript(
+        dismissAfter: Duration(milliseconds: 500));
+  }
   final controller = GameController(
     progress: save,
     store: InstantStore(),
-    ads: FakeAds(
-        ready: s.setup.rewardedReady, watchResult: s.setup.rewardedWatchResult),
+    ads: ads,
     clock: () => DateTime.utc(2026, 1, 1, 12),
   );
   await tester.pumpWidget(RepaintBoundary(

@@ -22,6 +22,10 @@
     { "do": "advance", "ms": 400 },
     { "do": "shot", "name": "results" },
     { "do": "advance", "ms": 6000 },
-    { "do": "expect", "path": "progress.runs", "eq": 1, "why": "results must not count the run a second time" }
+    { "do": "expect", "path": "progress.runs", "eq": 1, "why": "results must not count the run a second time" },
+    { "do": "expect", "path": "progress.crystals", "eq": 0, "why": "this seed picks up nothing in 15 m; a bonus must not appear" },
+    { "do": "expect", "path": "progress.bestM", "eq": 15, "why": "the best must be saved from this run" },
+    { "do": "expect", "path": "game.gatesPassed", "eq": 0 },
+    { "do": "expect", "path": "progress.interstitialsShown", "eq": 0, "why": "run 1 is never eligible for a full-screen ad" }
   ]
 }

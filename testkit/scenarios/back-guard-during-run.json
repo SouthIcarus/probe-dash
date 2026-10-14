@@ -17,6 +17,8 @@
     { "do": "expect", "path": "progress.runs", "eq": 1 },
     { "do": "back" },
     { "do": "wait_state", "path": "ui.screen", "eq": "home", "timeoutMs": 2000 },
-    { "do": "expect", "path": "progress.runs", "eq": 1 }
+    { "do": "expect", "path": "progress.runs", "eq": 1 },
+    { "do": "expect", "path": "progress.bestM", "eq": 2, "why": "the short run is the new best and is saved" },
+    { "do": "expect", "path": "progress.crystals", "eq": 0 }
   ]
 }

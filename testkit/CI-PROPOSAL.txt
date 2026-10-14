@@ -30,11 +30,16 @@ Add after the `flutter test` step (same pinned action as launch-test.yml):
 Permissions stay `contents: read`. No secret is used. The pictures show the
 game with invented data only.
 
-2. repo-rules.yml: the manifest ratchet (acceptance A5)
-------------------------------------------------------
-Add a step in job "check" after "Check commits", on pull_request only. The PR
-body is passed through an environment variable, never inlined in the script
-(SEC-13). The base branch's manifest is read with `git show`.
+2. build.yml, job "test": the manifest ratchet (acceptance A5; review T3, T4)
+----------------------------------------------------------------------------
+Revised after Chow's review (T4). Item 2 as first written had three faults:
+it sat in repo-rules.yml, which has no Dart; the "test" job in build.yml
+checks out only one commit, so the PR base was missing and the step printed
+"nothing to compare" and passed; and nothing covered the kit's own files.
+This version fails closed: when the base cannot be read, the step fails.
+
+Add as a step of job "test" in build.yml, after `flutter test` (Flutter, and
+so `dart`, is already installed there; no new action, so no new SHA to pin):
 
       - name: Probe Test Kit manifest ratchet
         if: github.event_name == 'pull_request'
@@ -43,21 +48,51 @@ body is passed through an environment variable, never inlined in the script
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           set -euo pipefail
-          if ! git cat-file -e "$PR_BASE:testkit/manifest.json" 2>/dev/null; then
-            echo "No manifest on the base branch yet: nothing to compare."
-            exit 0
+          # The checkout holds one commit: fetch the base explicitly.
+          git fetch --no-tags --depth=1 origin "$PR_BASE"
+          if ! git cat-file -e "$PR_BASE^{commit}"; then
+            echo "Cannot read the PR base commit $PR_BASE." >&2
+            exit 1
           fi
-          git show "$PR_BASE:testkit/manifest.json" > "$RUNNER_TEMP/base-manifest.json"
-          reason=$(printf '%s\n' "$PR_BODY" | sed -n 's/^TESTKIT-CHANGE:[[:space:]]*//p' | head -1)
-          # needs the Dart SDK: either add subosito/flutter-action to this job
-          # (pinned like build.yml) or run `dart` from the Flutter install.
+          reason=$(printf '%s\n' "$PR_BODY" | tr -d '\r' \
+            | sed -n 's/^TESTKIT-CHANGE:[[:space:]]*//p' | head -1)
+          # Rule A (plain shell, so a weakened tool cannot switch it off):
+          # any change to the kit's own files needs the reason line.
+          changed=$(git diff --name-only "$PR_BASE" HEAD -- \
+            test/testkit lib/testkit testkit/tool)
+          if [ -n "$changed" ] && [ -z "$reason" ]; then
+            echo "Kit files changed but the PR has no TESTKIT-CHANGE line:" >&2
+            echo "$changed" >&2
+            exit 1
+          fi
+          # Rule B: scenarios and kit-file hashes against the base manifest.
+          if ! git show "$PR_BASE:testkit/manifest.json" \
+              > "$RUNNER_TEMP/base-manifest.json"; then
+            echo "Cannot read testkit/manifest.json on the PR base." >&2
+            exit 1
+          fi
           dart run testkit/tool/check_manifest.dart \
             --base "$RUNNER_TEMP/base-manifest.json" \
             --head testkit/manifest.json \
             --reason "$reason"
 
-Cheaper alternative with no Dart: keep this step in build.yml's "test" job,
-which already has Flutter, and run it after `flutter pub get`.
+Notes:
+- `PR_BASE` and `PR_BODY` come in through `env:`; no `${{ github.* }}` is
+  inlined in the script (SEC-13). `permissions` stay `contents: read`.
+- The checkout in this job has `persist-credentials: false`. Fetching a SHA
+  from a public repo needs no token. If the repo is ever private the fetch
+  fails and the step goes red (it never passes silently). Do not turn on
+  persisted credentials for this step without the deep security pass.
+- Rule A is the one that protects against a weakened runner or a weakened
+  check_manifest.dart: Rule B runs the PR's own copy of the tool.
+- The reason is read when the job starts. Editing the PR description does not
+  re-run the job; push a commit or re-run the job after adding the line. Add
+  `edited` to the `pull_request` types only if the extra runs are accepted.
+- The very first PR that adds testkit/manifest.json has no manifest on its
+  base and would fail Rule B. Apply this step after the kit is on main.
+- Exit codes of check_manifest.dart: 0 holds or accepted with a reason, 1
+  weakened without a reason or manifest.json is out of date, 2 bad input.
+- Not run yet: this text has not been executed on GitHub (A6).
 
 3. Pull request template (new file .github/pull_request_template.md)
 -------------------------------------------------------------------

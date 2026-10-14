@@ -1,8 +1,10 @@
 // Probe Test Kit: the manifest ratchet. The manifest lists every scenario
 // with its assertion count and file hash. A scenario may not disappear, lose
 // assertions or change without a stated reason ("TESTKIT-CHANGE: reason" in
-// the PR). Pure Dart: used by the test run and by
-// `testkit/tool/check_manifest.dart`.
+// the PR). The manifest also lists the kit's own files (the runner, the
+// checks, this file, the tool, the app seams in lib/testkit) with a hash, so
+// a weakened runner is visible the same way. Pure Dart: used by the test run
+// and by `testkit/tool/check_manifest.dart`.
 import 'dart:convert';
 
 class ManifestEntry {
@@ -19,16 +21,21 @@ class ManifestEntry {
       };
 }
 
-/// Builds the manifest text (stable order, trailing newline).
-String manifestText(List<ManifestEntry> entries) {
+/// Builds the manifest text (stable order, trailing newline). [kitFiles] maps
+/// a repo-relative path to its hash.
+String manifestText(List<ManifestEntry> entries,
+    {Map<String, String> kitFiles = const {}}) {
   final sorted = [...entries]..sort((a, b) => a.id.compareTo(b.id));
   final assertionCount = sorted.fold<int>(0, (n, e) => n + e.assertions);
   const enc = JsonEncoder.withIndent('  ');
   final body = enc.convert({
-    'version': 1,
+    'version': 2,
     'scenarioCount': sorted.length,
     'assertionCount': assertionCount,
     'scenarios': {for (final e in sorted) e.id: e.toJson()},
+    'kitFiles': {
+      for (final k in kitFiles.keys.toList()..sort()) k: kitFiles[k],
+    },
   });
   return '$body\n';
 }
@@ -51,6 +58,44 @@ Map<String, ManifestEntry> parseManifest(String text) {
         id, v['assertions'] as int, v['sha256'] as String, v['canary'] == true);
   });
   return out;
+}
+
+/// Reads the "kitFiles" map (path to hash). A manifest from before kit files
+/// were hashed has none: the result is empty.
+Map<String, String> parseKitFiles(String text) {
+  final d = jsonDecode(text);
+  if (d is! Map<String, Object?>) {
+    throw const FormatException('manifest.json is not an object');
+  }
+  final raw = d['kitFiles'];
+  if (raw == null) return const {};
+  if (raw is! Map) {
+    throw const FormatException('manifest.json "kitFiles" is not an object');
+  }
+  final out = <String, String>{};
+  raw.forEach((k, v) {
+    if (k is! String || v is! String) {
+      throw FormatException('kitFiles entry "$k" is malformed');
+    }
+    out[k] = v;
+  });
+  return out;
+}
+
+/// Why a kit file is not as recorded: removed or changed. A file that is new
+/// is not a problem. Needs "TESTKIT-CHANGE: reason", like a changed scenario.
+List<String> kitFileProblems(
+    Map<String, String> recorded, Map<String, String> current) {
+  final problems = <String>[];
+  for (final e in recorded.entries) {
+    final now = current[e.key];
+    if (now == null) {
+      problems.add('kit file "${e.key}" was removed');
+    } else if (now != e.value) {
+      problems.add('kit file "${e.key}" changed (hash differs)');
+    }
+  }
+  return problems;
 }
 
 /// Why a scenario is not new: removed, weakened or changed compared with the
