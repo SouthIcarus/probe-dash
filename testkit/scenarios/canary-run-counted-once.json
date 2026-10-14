@@ -1,0 +1,15 @@
+{
+  "id": "canary-run-counted-once",
+  "title": "Canary: one crash is one run. Must FAIL when the kit's fault is switched on",
+  "covers": ["KIT-CANARY", "A-20"],
+  "canary": true,
+  "profile": { "size": [411, 891], "dpr": 2.63, "topInsetPx": 84, "seed": 42 },
+  "setup": { "save": "fixtures/fresh.json", "ads": { "rewardedReady": false } },
+  "steps": [
+    { "do": "tap", "text": "PLAY" },
+    { "do": "wait_state", "path": "ui.screen", "eq": "game", "timeoutMs": 2000 },
+    { "do": "tap_at", "x": 0.5, "y": 0.5 },
+    { "do": "wait_state", "path": "ui.overlay", "eq": "results", "timeoutMs": 15000 },
+    { "do": "expect", "path": "progress.runs", "eq": 1 }
+  ]
+}

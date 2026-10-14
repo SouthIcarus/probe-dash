@@ -1,0 +1,27 @@
+{
+  "id": "revive-offer-then-decline",
+  "title": "Crash, double-tap No thanks, the run is counted once and results show once",
+  "covers": ["A-20", "US-1"],
+  "profile": { "size": [411, 891], "dpr": 2.63, "topInsetPx": 84, "seed": 42 },
+  "setup": { "save": "fixtures/fresh.json", "ads": { "rewardedReady": true } },
+  "steps": [
+    { "do": "expect", "path": "ui.screen", "eq": "home" },
+    { "do": "tap", "text": "PLAY" },
+    { "do": "wait_state", "path": "ui.screen", "eq": "game", "timeoutMs": 2000 },
+    { "do": "expect", "path": "game.phase", "eq": "ready" },
+    { "do": "tap_at", "x": 0.5, "y": 0.5 },
+    { "do": "wait_state", "path": "game.phase", "eq": "crashed", "timeoutMs": 15000 },
+    { "do": "wait_state", "path": "ui.overlay", "eq": "revive", "timeoutMs": 3000 },
+    { "do": "advance", "ms": 400 },
+    { "do": "shot", "name": "revive-offer" },
+    { "do": "advance", "ms": 400 },
+    { "do": "tap", "text": "No thanks", "times": 2 },
+    { "do": "wait_state", "path": "ui.overlay", "eq": "results", "timeoutMs": 3000 },
+    { "do": "expect", "path": "progress.runs", "eq": 1 },
+    { "do": "expect_text", "text": "PLAY AGAIN", "count": 1 },
+    { "do": "advance", "ms": 400 },
+    { "do": "shot", "name": "results" },
+    { "do": "advance", "ms": 6000 },
+    { "do": "expect", "path": "progress.runs", "eq": 1, "why": "results must not count the run a second time" }
+  ]
+}

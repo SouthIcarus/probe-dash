@@ -4,9 +4,11 @@ import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
+import '../config/env.dart';
 import '../logic/run_session.dart';
 import '../logic/tuning.dart';
 import '../logic/upgrades.dart';
+import '../testkit/state_logger.dart';
 import 'haptics.dart';
 
 /// Draws a [RunSession] and drives it with Flame's game loop.
@@ -91,7 +93,24 @@ class ProbeGame extends FlameGame {
   double _time = 0;
 
   /// One shared random source for render-only effects and the star field.
-  static final math.Random _fx = math.Random();
+  static math.Random _fx = math.Random();
+
+  /// Probe Test Kit: when set, every run uses `seed + run number` for gates
+  /// and pickups and for the render-only effects, so a scenario plays out
+  /// the same way every time. Null in the app (unseeded, as before).
+  @visibleForTesting
+  static int? testSeed;
+
+  /// Probe Test Kit: font for the HUD text in pictures taken by tests (the
+  /// test engine draws text with no font named as solid boxes). Null in the
+  /// app, which keeps the platform font as before.
+  @visibleForTesting
+  static String? hudFontFamily;
+
+  int _runNumber = 0;
+
+  /// Prints `PROBE_STATE` lines; null unless this is a test-kit build.
+  final StateLogger? _logger = env.testkitEnabled ? StateLogger() : null;
 
   // Render-only effects (no effect on the simulation).
   double _shakeLeft = 0; // seconds of shake remaining
@@ -177,10 +196,14 @@ class ProbeGame extends FlameGame {
   void newRun({Map<UpgradeType, int>? upgradeLevels, int? bestDistance}) {
     if (upgradeLevels != null) _upgradeLevels = Map.of(upgradeLevels);
     if (bestDistance != null) _bestDistance = bestDistance;
+    final seed = testSeed == null ? null : testSeed! + _runNumber;
+    _runNumber++;
+    if (seed != null) _fx = math.Random(seed);
     _session = RunSession(
         worldWidth: _worldWidth,
         upgradeLevels: _upgradeLevels,
-        bestDistance: _bestDistance);
+        bestDistance: _bestDistance,
+        seed: seed);
     _stars = List.generate(
       70,
       (_) => _Star(_fx.nextDouble(), _fx.nextDouble() * Tuning.worldHeight,
@@ -332,6 +355,75 @@ class ProbeGame extends FlameGame {
     }
     _syncPhase();
     _updateEffects(dt);
+    _logger?.tick(dt, phase.value.name, testState);
+  }
+
+  /// A small JSON-safe picture of the game for the Probe Test Kit: what the
+  /// run is doing and where the HUD is. Read only; never changes the game.
+  /// Numbers are rounded to 3 decimals so two runs print the same text.
+  Map<String, Object?> testState() {
+    double r(double v) => (v * 1000).round() / 1000;
+    final s = _session;
+    // Same test as _drawBestLabel: the "ahead" note shows only while the
+    // gold line is still off screen and the record is not yet passed.
+    var onScreen = false;
+    String? ahead;
+    if (s != null && _bestDistance > 0) {
+      final x = bestMarkerX(
+          best: _bestDistance, renderScroll: s.renderScroll, probeX: s.probeX);
+      onScreen = x >= -10 && x <= _worldWidth + 10;
+      if (!onScreen && !s.passedBest) {
+        ahead = bestAhead(
+            best: _bestDistance,
+            distanceMeters: s.distanceMeters,
+            markerOnScreen: false);
+      }
+    }
+    // The nearest gate the probe has not passed yet: x is the distance
+    // ahead of the left screen edge in world units.
+    Gate? nextGate;
+    if (s != null) {
+      for (final g in s.gates) {
+        if (!g.passed && (nextGate == null || g.x < nextGate.x)) nextGate = g;
+      }
+    }
+    return {
+      'schema': 1,
+      'phase': (s?.phase ?? RunPhase.ready).name,
+      'distanceM': s?.distanceMeters.floor() ?? 0,
+      'bestM': _bestDistance,
+      'crystals': s?.rawCrystals ?? 0,
+      'nearMisses': s?.nearMisses ?? 0,
+      'gatesPassed': s?.gatesPassed ?? 0,
+      'shieldHitsLeft': s?.shieldHitsLeft ?? 0,
+      'reviveUsed': s?.reviveUsed ?? false,
+      'canRevive': s?.canRevive ?? true,
+      'passedBest': s?.passedBest ?? false,
+      'probe': {
+        'x': r(s?.probeX ?? 0),
+        'y': r(s?.probeY ?? 0),
+        'vy': r(s?.velocityY ?? 0),
+      },
+      'nextGate': nextGate == null
+          ? null
+          : {
+              'x': r(nextGate.x - (s?.scroll ?? 0)),
+              'gapTop': r(nextGate.gapTop),
+              'gapBottom': r(nextGate.gapBottom),
+            },
+      'screen': {'w': r(size.x), 'h': r(size.y)},
+      'hud': {
+        'top': r(hudTop),
+        'insetTop': r(viewPadding.top),
+        'clearOfInset': r(hudTop - viewPadding.top),
+        'bestLine': s == null
+            ? null
+            : bestLine(_bestDistance, passed: s.passedBest),
+        'bestAhead': ahead,
+        'bestMarkerOnScreen': onScreen,
+        'newBestBanner': newBestBannerAge != null,
+      },
+    };
   }
 
   @override
@@ -648,6 +740,7 @@ class _HudText {
       _tp.text = TextSpan(
         text: text,
         style: TextStyle(
+          fontFamily: ProbeGame.hudFontFamily,
           color: color,
           fontSize: fontSize,
           fontWeight: FontWeight.bold,

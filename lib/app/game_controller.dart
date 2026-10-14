@@ -9,6 +9,7 @@ import '../logic/run_session.dart';
 import '../logic/upgrades.dart';
 import '../services/ad_service.dart';
 import '../services/save_store.dart';
+import '../testkit/fault.dart';
 
 /// App-wide state: the player's progress plus the save and ad services.
 /// Screens listen to it and call its methods; it saves after every change
@@ -102,6 +103,7 @@ class GameController extends ChangeNotifier {
   ///    until it closes, so the ad can never cover a run that is moving.
   ResultsOpen openResults(RunResult result) {
     final newBest = progress.applyRun(result);
+    if (TestkitFault.countRunsTwice) progress.runs++; // canary fault only
     notifyListeners();
     final runSaved = store.save(progress);
     final rewarded = _rewardedShownThisRun;

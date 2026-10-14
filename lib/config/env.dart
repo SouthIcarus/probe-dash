@@ -73,6 +73,7 @@ class EnvConfig {
     this.analytics = 'off',
     this.buildLabel = 'DEV',
     this.debugMenu = 'false',
+    this.testkit = 'false',
     this.rewardedId = '',
     this.interstitialId = '',
     this.buildName = '',
@@ -97,6 +98,7 @@ class EnvConfig {
         'DEBUG_MENU',
         defaultValue: 'false',
       ),
+      testkit = const String.fromEnvironment('TESTKIT', defaultValue: 'false'),
       // Defaults are the Google test units (environments.md §4.1). Real
       // values are injected only by release.yml for prod.
       rewardedId = const String.fromEnvironment(
@@ -129,6 +131,9 @@ class EnvConfig {
 
   /// `DEBUG_MENU`: `true` or `false`.
   final String debugMenu;
+
+  /// `TESTKIT`: `true` only in builds made for the Probe Test Kit.
+  final String testkit;
 
   /// `ADMOB_REWARDED_ID` (Android).
   final String rewardedId;
@@ -176,6 +181,11 @@ class EnvConfig {
 
   /// Whether the debug menu may be compiled in (ENV-9): dev only.
   bool get debugMenuEnabled => flavor == Flavor.dev && debugMenu == 'true';
+
+  /// Whether the Probe Test Kit hooks may run (the `PROBE_STATE` log line):
+  /// dev flavor only, and only when the build says `TESTKIT=true`. Beta and
+  /// prod never enable it, whatever the defines say.
+  bool get testkitEnabled => flavor == Flavor.dev && testkit == 'true';
 
   /// The Home build label (UI-2, amended in spec v3):
   /// dev "DEV · test ads" + version; beta "BETA X.Y.Z (N)"; prod none.

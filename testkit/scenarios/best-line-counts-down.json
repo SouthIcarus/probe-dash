@@ -1,0 +1,19 @@
+{
+  "id": "best-line-counts-down",
+  "title": "With a best of 60 m the HUD shows BEST 60 m and the ahead note counts down",
+  "covers": ["A-04", "C9B"],
+  "profile": { "size": [411, 891], "dpr": 2.63, "topInsetPx": 84, "seed": 42 },
+  "setup": { "save": { "bestDistance": 60 } },
+  "steps": [
+    { "do": "tap", "text": "PLAY" },
+    { "do": "wait_state", "path": "ui.screen", "eq": "game", "timeoutMs": 2000 },
+    { "do": "expect", "path": "game.hud.bestLine", "eq": "BEST 60 m" },
+    { "do": "tap_at", "x": 0.5, "y": 0.5 },
+    { "do": "wait_state", "path": "game.hud.bestAhead", "eq": "BEST 60 m ahead", "timeoutMs": 1000 },
+    { "do": "expect", "path": "game.hud.bestMarkerOnScreen", "eq": false },
+    { "do": "shot", "name": "ahead-60" },
+    { "do": "wait_state", "path": "game.hud.bestAhead", "eq": "BEST 50 m ahead", "timeoutMs": 3000 },
+    { "do": "expect", "path": "game.passedBest", "eq": false },
+    { "do": "shot", "name": "ahead-50" }
+  ]
+}

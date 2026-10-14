@@ -1,0 +1,22 @@
+{
+  "id": "back-guard-during-run",
+  "title": "Back during a run ends the run and shows results; back again leaves",
+  "covers": ["FEEL-03", "A-07"],
+  "profile": { "size": [411, 891], "dpr": 2.63, "topInsetPx": 84, "seed": 42 },
+  "setup": { "save": "fixtures/fresh.json", "ads": { "rewardedReady": false } },
+  "steps": [
+    { "do": "tap", "text": "PLAY" },
+    { "do": "wait_state", "path": "ui.screen", "eq": "game", "timeoutMs": 2000 },
+    { "do": "tap_at", "x": 0.5, "y": 0.5 },
+    { "do": "advance", "ms": 100 },
+    { "do": "expect", "path": "game.phase", "eq": "playing" },
+    { "do": "back" },
+    { "do": "advance", "ms": 1000 },
+    { "do": "expect", "path": "ui.screen", "eq": "game", "why": "the first back must not close the screen" },
+    { "do": "expect", "path": "ui.overlay", "eq": "results" },
+    { "do": "expect", "path": "progress.runs", "eq": 1 },
+    { "do": "back" },
+    { "do": "wait_state", "path": "ui.screen", "eq": "home", "timeoutMs": 2000 },
+    { "do": "expect", "path": "progress.runs", "eq": 1 }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "scenarioCount": 6,
+  "assertionCount": 25,
+  "scenarios": {
+    "back-guard-during-run": {
+      "assertions": 5,
+      "canary": false,
+      "sha256": "a9afa03f4ce1a2685081264b35baefc59c6b449faa67c251aaa4363976f22b6f"
+    },
+    "best-line-counts-down": {
+      "assertions": 3,
+      "canary": false,
+      "sha256": "655818316e832609f3cd15e8cfbadd8bf10b25269f71f9b456c5d834dab3077e"
+    },
+    "camera-hole-layout": {
+      "assertions": 8,
+      "canary": false,
+      "sha256": "87a662fa708ac01a65793bac23a6abd342c9ea83adaf26799ad8074332ee5cb2"
+    },
+    "canary-run-counted-once": {
+      "assertions": 1,
+      "canary": true,
+      "sha256": "910b2ec2144b0f4423f260ae3c786ed489e6407b13c372dd9c2ebf53ebf80d61"
+    },
+    "countdown-ends-as-player-taps": {
+      "assertions": 3,
+      "canary": false,
+      "sha256": "4a1099942228d3d7603e8ba94e893c545d50bd9e384ae4a9db10209280c0d8d7"
+    },
+    "revive-offer-then-decline": {
+      "assertions": 5,
+      "canary": false,
+      "sha256": "50fc2e998e7a642ca8f966ede63bee9f2d7b58d3b4f838ba0e52f46663cb35bd"
+    }
+  }
+}
