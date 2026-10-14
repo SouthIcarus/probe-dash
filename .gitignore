@@ -60,3 +60,6 @@ google-services.json
 *.b64
 .env*
 config/*.secrets.json
+
+# Probe Test Kit output (generated; CI uploads it as an artifact)
+/testkit-out/

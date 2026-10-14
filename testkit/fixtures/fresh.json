@@ -1,0 +1,9 @@
+{
+  "saveVersion": 1,
+  "crystals": 0,
+  "bestDistance": 0,
+  "upgrades": { "crystalValue": 0, "shield": 0, "magnet": 0, "headStart": 0 },
+  "entitlements": { "removeAds": false },
+  "settings": { "haptics": true },
+  "stats": { "runs": 0, "interstitialsShown": 0 }
+}

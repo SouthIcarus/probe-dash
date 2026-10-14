@@ -1021,3 +1021,130 @@ new entry that references the old one instead. Newest entries at the bottom.
 - **Agent:** Andy (inline)
 - **Files:** .github/scripts/launch-test.sh
 - **Refs:** #0040
+
+## #0042 â€” 2026-10-14 â€” CHANGE â€” Probe Test Kit, slice 1 (layer A): scenario runner on flutter test
+- **What:** Agents can now write a scenario as a small JSON file in
+  `testkit/scenarios/`, run `flutter test test/testkit`, and read one
+  table in `testkit-out/latest/report.md` (plus state JSON after every
+  step and pictures with real fonts). Six scenarios ship: decline the
+  revive after a double tap (A-20), the countdown ending as the player
+  taps (A-20), back during a run (FEEL-03), the BEST-ahead note counting
+  down (A-04), the S26 camera-hole layout at 411x891, 360x780 and a
+  deeper cut-out (A-06), and a canary that must fail when a deliberate
+  fault is switched on. The game reports its state through
+  `ProbeGame.testState()` and a `PROBE_STATE {json}` log line that only
+  a dev build with `TESTKIT=true` prints. `testkit/manifest.json` records
+  scenario ids, assertion counts and file hashes; a removed, weakened or
+  changed scenario fails the run unless a reason is given. No sleeps in
+  scenarios; FLAKY (fails once then passes, or a different state trace
+  when repeated) counts as a failure. Same seed gives the same
+  `report.json` byte for byte (no clock time in it).
+- **Why:** Owner "go" on 14 Oct for slice 1 of Ana's report
+  `docs/testing/flutter-agent-testing.v1.md` in AJ_PROBE: the agents
+  should check the game without the phone for everything that is not
+  feel. Layer A needs no new package, no SDK and no network.
+- **Seams in the app (production behaviour unchanged, the old 212 tests
+  pass untouched):** `Env.testkitEnabled` (dev flavor and `TESTKIT=true`
+  only; beta and prod never); `ProbeGame.testState()` (read only);
+  `ProbeGame.testSeed` (null in the app, so gates are random as before)
+  and `ProbeGame.hudFontFamily` (null in the app); a `StateLogger`
+  created only when the switch above is on; `TestkitFault` (a debug-only
+  switch, always false in profile and release because it sits inside an
+  `assert`) read in one line of `GameController.openResults`.
+- **Also found while checking R1 and R2 in a scratch copy (nothing
+  changed in the app for this):** a Flutter web build compiles. In
+  headless Edge the WebGL canvas renders (5 of 5 loads) and the full
+  PLAY, crash, results flow works (10 of 10), BUT the unmodified app shows
+  a blank page: `AdService` reads `dart:io` `Platform.isIOS`, which throws
+  on web. Also `path_provider` has no web version (the save falls back to
+  a fresh save and every save fails, quietly), and one uncaught error is
+  still logged at start-up (probably `MobileAds` initialise on web). Layer
+  B needs a small web-safe seam for ads and save; that is a separate
+  change.
+- **Not changed:** no workflow. The CI changes (report in the job
+  summary, artifact upload, manifest check, PR template lines) are in
+  `testkit/CI-PROPOSAL.txt` and need Chow's review before anyone applies
+  them.
+- **Verified:** `flutter analyze`: no issues. `flutter test`: 212 tests
+  before, 261 after (212 old + 49 new), all pass, 22 s. `flutter test
+  test/testkit` run twice: `report.json` identical. 20 runs of one
+  scenario: one state trace. `TESTKIT_REPEAT=3` in Windows PowerShell
+  5.1: all PASS. Planted bugs (each reverted): back guard off, double
+  finish guard off, run never counted, HUD ignores the inset: all
+  caught, naming the scenario and requirement; shortened crash beat was
+  not caught by the scenarios (the older widget test covers it).
+  `check_manifest.dart` exits 1 on a removed or weakened scenario and 0
+  with a stated reason.
+- **Not verified:** the CI run itself (A6); an agent that has never seen
+  the kit writing a 6th scenario from `SCHEMA.md` alone (A10);
+  pictures on Linux CI against this PC (R9); the `â—†` sign draws as a
+  box in pictures because Roboto has no such glyph (the phone uses a
+  fallback font); any feel, sound or real ad.
+- **Review:** none yet; needs Chow (touches `GameController`,
+  `ProbeGame` and `Env`, and proposes workflow changes).
+- **Agent:** Billy
+- **Files:** lib/config/env.dart, lib/game/probe_game.dart,
+  lib/app/game_controller.dart, lib/testkit/state_logger.dart,
+  lib/testkit/fault.dart, test/testkit/ (scenario_runner_test.dart,
+  kit_rules_test.dart, hooks_test.dart, repeatability_test.dart, src/),
+  testkit/ (SCHEMA.md, CI-PROPOSAL.txt, manifest.json, scenarios/,
+  fixtures/, tool/check_manifest.dart), .gitignore, changelog.md
+- **Refs:** AJ_PROBE docs/testing/flutter-agent-testing.v1.md sections 7,
+  8, 11 (R1, R2, R5, R6)
+
+## #0043 — 2026-10-14 — CHANGE — Probe Test Kit: scenarios check numbers, kit files are hashed, CI text fixed (Chow T1, T3, T4)
+- **What:** Chow's review of #0042 (AJ_PROBE `docs/testing/review-testkit-slice1.v1.md`)
+  found the kit caught 1 of 8 planted bugs and that a weakened runner passed
+  silently. (T1) Three new scenarios assert exact seeded numbers:
+  `full-run-scores-exact` (seed 6: 4 gates, 1 near miss, 10 crystals, 153 m,
+  saved once on top of 100 crystals), `sixth-run-shows-one-interstitial`
+  (counter goes 2 to 3) and `revive-offered-once-per-run` (no second revive
+  offer). `revive-offer-then-decline` and `back-guard-during-run` gained
+  `eq` checks on crystals, best, gates and the interstitial counter. A new
+  scenario setup field `ads.interstitialLoaded` (test code only) loads a
+  full-screen ad in the fake. (T3) `manifest.json` (now version 2) lists a
+  SHA-256 for every `.dart` file in `test/testkit/`, `lib/testkit/` and
+  `testkit/tool/` under `kitFiles`; a removed or changed kit file fails the
+  run and `check_manifest.dart` unless a `TESTKIT-CHANGE` reason is given,
+  and the tool also fails when the manifest does not match the files on
+  disk. (T4) `testkit/CI-PROPOSAL.txt` item 2 is rewritten as text only: it
+  goes in build.yml's test job, fetches `$PR_BASE` explicitly, exits 1 when
+  the base or its manifest cannot be read, requires the reason line in plain
+  shell whenever kit files changed, and keeps `${{ github.* }}` out of
+  `run:`. `testkit/SCHEMA.md`: adding a scenario needs
+  `TESTKIT_UPDATE_MANIFEST=1`, `ui.*` is read from on-screen text, state
+  paths are frozen as schema 1.
+- **Why:** A green kit that checks too little is false confidence (T1). The
+  rule "agents cannot weaken tests" must also cover the runner that decides
+  pass or fail (T3). The CI text as written would have passed with no base to
+  compare (T4).
+- **TESTKIT-CHANGE:** two existing scenarios gained assertions (hash
+  changed, none lost); `test/testkit/src/` (scenario.dart, runner.dart,
+  manifest.dart, new kit_files.dart), `scenario_runner_test.dart`,
+  `kit_rules_test.dart` and `testkit/tool/check_manifest.dart` changed to
+  add the above. Nothing was weakened.
+- **Not changed:** nothing under `lib/` and nothing under `.github/`; no
+  workflow is edited (the CI text waits for the owner and a deep security
+  pass). Production behaviour is unchanged because no app file changed.
+- **Verified:** `flutter analyze`: no issues. `flutter test`: 273 pass
+  (212 old + 61 kit; was 261). `flutter test test/testkit` 61 pass, also
+  with `TESTKIT_REPEAT=3`. Planted bugs in a scratch copy (each reverted):
+  the kit alone catches all 8 of Chow's (was 1 of 8). Weakening the
+  runner in a scratch copy and refreshing the manifest passes locally but
+  `check_manifest.dart` against the base manifest exits 1 (kit file
+  changed); the same with a reason exits 0.
+- **Not verified:** the CI step itself on GitHub (A6) and the T4 text as
+  an executed workflow; two planted bugs (game keeps running under a
+  full-screen ad, run saved twice) are not seen by the kit, only by the
+  older tests; a cold-agent A10; pictures on Linux CI.
+- **Agent:** Billy
+- **Files:** test/testkit/ (scenario_runner_test.dart, kit_rules_test.dart,
+  src/scenario.dart, src/runner.dart, src/manifest.dart, src/kit_files.dart),
+  testkit/ (manifest.json, SCHEMA.md, CI-PROPOSAL.txt,
+  tool/check_manifest.dart, scenarios/back-guard-during-run.json,
+  scenarios/revive-offer-then-decline.json,
+  scenarios/full-run-scores-exact.json,
+  scenarios/sixth-run-shows-one-interstitial.json,
+  scenarios/revive-offered-once-per-run.json), changelog.md
+- **Refs:** #0042; Chow review T1, T3, T4 (T2 is closed by applying the CI
+  text); AJ_PROBE docs/testing/flutter-agent-testing.v1.md

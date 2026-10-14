@@ -1,0 +1,110 @@
+Probe Test Kit: proposed CI changes (NOT applied)
+=================================================
+
+Slice 1 changes no workflow. Layer A already runs in the existing
+"Analyze and test" job, because `flutter test` picks up test/testkit/. These
+three changes make its report visible and make the manifest rule binding.
+Anything that touches a workflow needs Chow's review before it is merged.
+
+1. build.yml, job "test": show the report and keep the pictures
+--------------------------------------------------------------
+Add after the `flutter test` step (same pinned action as launch-test.yml):
+
+      - name: Probe Test Kit report
+        if: always()
+        run: |
+          if [ -f testkit-out/latest/report.md ]; then
+            cat testkit-out/latest/report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No Probe Test Kit report was written." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload Probe Test Kit output
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: testkit-out
+          path: testkit-out/latest/
+          if-no-files-found: ignore
+          retention-days: 14
+
+Permissions stay `contents: read`. No secret is used. The pictures show the
+game with invented data only.
+
+2. build.yml, job "test": the manifest ratchet (acceptance A5; review T3, T4)
+----------------------------------------------------------------------------
+Revised after Chow's review (T4). Item 2 as first written had three faults:
+it sat in repo-rules.yml, which has no Dart; the "test" job in build.yml
+checks out only one commit, so the PR base was missing and the step printed
+"nothing to compare" and passed; and nothing covered the kit's own files.
+This version fails closed: when the base cannot be read, the step fails.
+
+Add as a step of job "test" in build.yml, after `flutter test` (Flutter, and
+so `dart`, is already installed there; no new action, so no new SHA to pin):
+
+      - name: Probe Test Kit manifest ratchet
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          # The checkout holds one commit: fetch the base explicitly.
+          git fetch --no-tags --depth=1 origin "$PR_BASE"
+          if ! git cat-file -e "$PR_BASE^{commit}"; then
+            echo "Cannot read the PR base commit $PR_BASE." >&2
+            exit 1
+          fi
+          reason=$(printf '%s\n' "$PR_BODY" | tr -d '\r' \
+            | sed -n 's/^TESTKIT-CHANGE:[[:space:]]*//p' | head -1)
+          # Rule A (plain shell, so a weakened tool cannot switch it off):
+          # any change to the kit's own files needs the reason line.
+          changed=$(git diff --name-only "$PR_BASE" HEAD -- \
+            test/testkit lib/testkit testkit/tool)
+          if [ -n "$changed" ] && [ -z "$reason" ]; then
+            echo "Kit files changed but the PR has no TESTKIT-CHANGE line:" >&2
+            echo "$changed" >&2
+            exit 1
+          fi
+          # Rule B: scenarios and kit-file hashes against the base manifest.
+          if ! git show "$PR_BASE:testkit/manifest.json" \
+              > "$RUNNER_TEMP/base-manifest.json"; then
+            echo "Cannot read testkit/manifest.json on the PR base." >&2
+            exit 1
+          fi
+          dart run testkit/tool/check_manifest.dart \
+            --base "$RUNNER_TEMP/base-manifest.json" \
+            --head testkit/manifest.json \
+            --reason "$reason"
+
+Notes:
+- `PR_BASE` and `PR_BODY` come in through `env:`; no `${{ github.* }}` is
+  inlined in the script (SEC-13). `permissions` stay `contents: read`.
+- The checkout in this job has `persist-credentials: false`. Fetching a SHA
+  from a public repo needs no token. If the repo is ever private the fetch
+  fails and the step goes red (it never passes silently). Do not turn on
+  persisted credentials for this step without the deep security pass.
+- Rule A is the one that protects against a weakened runner or a weakened
+  check_manifest.dart: Rule B runs the PR's own copy of the tool.
+- The reason is read when the job starts. Editing the PR description does not
+  re-run the job; push a commit or re-run the job after adding the line. Add
+  `edited` to the `pull_request` types only if the extra runs are accepted.
+- The very first PR that adds testkit/manifest.json has no manifest on its
+  base and would fail Rule B. Apply this step after the kit is on main.
+- Exit codes of check_manifest.dart: 0 holds or accepted with a reason, 1
+  weakened without a reason or manifest.json is out of date, 2 bad input.
+- Not run yet: this text has not been executed on GitHub (A6).
+
+3. Pull request template (new file .github/pull_request_template.md)
+-------------------------------------------------------------------
+Three lines for the author (Billy) and the reviewer (Chow):
+
+  Scenarios added or changed: <ids, or "none">
+  Report line: <the first line of testkit-out/latest/report.md>
+  Scenario or assertion count went down? <yes/no, and why. If yes, add a
+  line "TESTKIT-CHANGE: <reason>" to this description>
+
+4. Later, not now
+-----------------
+- Nightly run with TESTKIT_REPEAT=3 to look for FLAKY scenarios.
+- Layer B (web) and layer C (emulator). Results of R1 and R2 are in the
+  changelog entry that came with this slice.
