@@ -37,7 +37,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   flame: ^1.38.2
-  google_mobile_ads: ^9.1.0
+  google_mobile_ads: ^9.2.0
   path_provider: ^2.1.6
 
 dev_dependencies:
